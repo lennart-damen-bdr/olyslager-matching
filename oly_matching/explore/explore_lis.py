@@ -7,6 +7,7 @@ print(f"Lis: {df_lis.shape}")
 ix_keep = df_lis["component_group"] == "Engines"
 df_lis = df_lis.loc[ix_keep, :]
 print(f"Lis after dropping all rows that are not 'Engines': {df_lis.shape}")
+df_lis["type_year_id"] = df_lis["model_year_start"].astype(str) + "_" + df_lis["model_year_end"].astype(str)
 
 # The type_id "almost" completely identifies a vehicle
 value_count = df_lis.groupby('type_id').size().value_counts()
@@ -40,6 +41,6 @@ value_count = unique_type_id_count.value_counts()
 # 3       28
 # 4       27
 print(value_count)
-print(value_count.iloc[0] / value_count.sum())  # > 99%, 16598 records
-# That sounds good enough to me.
+print(value_count.iloc[0] / value_count.sum())  # > 94%, 13755 records
+# That sounds good enough to me for now, but we can refine later.
 # For safety, we might want to check how a LIS type_id is generated EXACTLY but this works for now.

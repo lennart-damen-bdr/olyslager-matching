@@ -1,0 +1,188 @@
+import pandas as pd
+
+from oly_matching import constants as c
+from oly_matching import clean, extract, utils
+
+# TODO: ignoring country codes for matching for now! Check if okay
+
+df_tecdoc = pd.read_excel(
+    io="/Users/lennartdamen/Documents/code/olyslager/data/raw/tecdoc.xlsx",
+    parse_dates=[7, 8]
+)
+df_lis = pd.read_excel("/Users/lennartdamen/Documents/code/olyslager/data/raw/lis.xlsx")
+
+print(f"Tecdoc: {df_tecdoc.shape}")
+print(f"Lis: {df_lis.shape}")
+
+# For POC, keep only the rows related to the engine
+ix_keep = df_lis["component_group"] == "Engines"
+df_lis = df_lis.loc[ix_keep, :]
+print(f"Lis after dropping all rows that are not 'Engines': {df_lis.shape}")
+
+# For the moment, we only keep the columns we care about
+lis_cols = [x for x in c.MATCHING_COLUMN_MAPPING.values() if x != "axle_configuration"]
+lis_cols += ["type_id"]
+df_lis = df_lis[lis_cols]
+
+tecdoc_cols = list(c.MATCHING_COLUMN_MAPPING.keys())
+tecdoc_cols += ["N-Type No."]
+df_tecdoc = df_tecdoc[tecdoc_cols]
+
+df_tecdoc = clean.convert_time_cols_tecdoc(df=df_tecdoc)
+
+# For simplicity, we will rename all tecdoc columns to correspond to LIS columns
+df_tecdoc = df_tecdoc.rename(columns=c.MATCHING_COLUMN_MAPPING)
+
+# For inspection, we sort the data
+# df_lis = df_lis.sort_values(by=list(df_lis.columns))
+# df_tecdoc = df_tecdoc.sort_values(by=list(df_tecdoc.columns))
+
+# For further cleaning, we focus on the largest brands (=make) in LIS
+n_records_per_brand = df_lis["make"].value_counts(ascending=False)
+print(f"The ten biggest brands in LIS are:\n{n_records_per_brand.iloc[:10]}")
+print("We will take extra care trying to get the formatting between LIS and TecDoc right for those brands")
+
+# Take one of the largest brands
+ix_keep = df_lis["make"].str.lower().str.contains("mercedes")
+df_lis = df_lis.loc[ix_keep, :]
+
+ix_keep = df_tecdoc["make"].str.lower().str.contains("mercedes")
+df_tecdoc = df_tecdoc.loc[ix_keep, :]
+
+# Mercedes-Benz
+# - LIS
+# --- make = Mercedes-Benz (COUNTRY)
+# --- the country code is in capital between brackets
+# --- model can contain 'Euro x' code, e.g. Atego Euro 5 (looks like always formatted with space)
+# --- model can contain something like Construction/Chassis/tractor, like Actros II tractor Euro 6
+# --- model is sometimes repeated in the type, but also often not (50-50?)
+# --- type can contains L/LL/LS/K or jus LS
+# --- type can contain the axle config, usually between brackets or sometimes separated by space
+# --- type can also contain other info between brackets, such as (chassis), (tractor)
+# --- component_code is formatted mostly like OMxxxLA, somtimes follow by a generation in Roman (IV)
+# --- the component_code ALSO often contains Euro x after OMxxxLA.
+#     Sometimes Euro x is in type, sometimes in component, sometimes both
+
+# TecDoc
+# --- make = MERCEDES-BENZ
+# --- model = capitals, sometimes seperated by slash or space-slash-space
+#             example: T2/L or ACTROS MP2 / MP3.
+# --- model sometimes has an O NUMBER between brackets, like CONECTO () 345)
+# --- In the vast majority, the model is NOT repeated in the type.
+#     Ocassionally it IS repeated, like INTEGRO (0 550) - Integro
+# --- component_code is formatted OM xxx.xxx in all cases I could see
+# --- component_code my have info between brackets, like OM xxx.xxx (xx.xx-xx.xx)
+
+# Plan
+# --- only add new columns followed by suffix "_merge"
+# --- extract and remove (COUNTRY) from LIS
+# --- extract and remove Euro x from model and component_code from LIS
+# --- extract and remove Construction/Chassis/tractor from model LIS
+# --- remove model from the type column from LIS
+# --- expand the slashes in the L/LL/LS/K (Tecdoc has xxxx AK or xxxxx S)
+# --- for both, add a component_code column that looks like OMxxx (forgetting LA and more specific engine codes)
+
+# Extract LIS information from columns that is needed for the merge, but don't modify the columns yet
+df_lis = extract.append_axle_configs_lis(df_lis)
+
+# Extract extra information from LIS, not necessarily needed for merge but nice to have
+for col in ("model", "component_code"):  # "type" for other brands than Mercedes
+    df_lis[f"euro_{col}_lis"] = extract.extract_euro_code(df_lis[col])
+df_lis["country_lis"] = extract.extract_country_from_make_lis(df_lis["make"])
+df_lis["vehicly_type_lis"] = extract.extract_vehicle_type_lis(df_lis["model"])
+
+
+# For simple cleaning we use hardcoding
+df_lis["category"] = clean.clean_category_column_lis(df_lis["category"])
+df_tecdoc["category"] = clean.clean_body_type_column_tecdoc(df_tecdoc["category"])
+
+# Clean the columns from LIS and TecDoc so that they have the same format
+df_lis[c.STR_COLS] = (
+    df_lis[c.STR_COLS]
+    .astype(str)
+    .apply(lambda x: x.str.lower())
+)
+df_tecdoc[c.STR_COLS] = (
+    df_tecdoc[c.STR_COLS]
+    .astype(str)
+    .apply(lambda x: x.str.lower())
+)
+for col in c.STR_COLS:
+    df_lis[col] = clean.clean_whitespace(df_lis[col])
+    df_tecdoc[col] = clean.clean_whitespace(df_tecdoc[col])
+
+
+for col in ("type", "component_code"):
+    df_lis = utils.explode_column(df_lis, col)
+    df_tecdoc = utils.explode_column(df_tecdoc, col)
+
+df_lis["make"] = clean.clean_make_column(df_lis["make"])
+df_tecdoc["make"] = clean.clean_make_column(df_tecdoc["make"])
+
+# TODO: deal with actros mp4 / mp5 in model column tecdoc --> large issue
+# Seems like LIS does not contain information about this, so we will drop it
+# TODO: deal with conecto (0 345) model column tecdoc --> small issue
+# skipped
+# TODO: deal with kl/ln2 model column tecdoc --> small issue
+# skipped
+df_lis["model"] = clean.clean_model_column_lis(df_lis["model"])
+df_tecdoc = clean.clean_model_column_tecdoc(df_tecdoc)
+
+# TODO: expand the subtypes separated by XXXX letters/letters, or just letters/letters
+df_lis = clean.clean_type_column_lis(df_lis)
+
+df_tecdoc["component_code"] = clean.clean_engine_code_tecdoc(df_tecdoc["component_code"])
+df_lis["component_code"] = clean.clean_engine_code_lis(df_lis["component_code"])
+
+# Matching
+# If the type is missing, we remove the row
+REQUIRED_COLS = ["make", "model", "type", "component_code"]
+
+ix_keep = df_tecdoc[REQUIRED_COLS].notnull().all(axis=1)
+df_tecdoc = df_tecdoc[ix_keep]
+df_tecdoc["in_tecdoc"] = True
+
+ix_keep = df_lis[REQUIRED_COLS].notnull().all(axis=1)
+df_lis = df_lis[ix_keep]
+
+MATCHING_COLS = ["make", "model", "type", "axle_configuration", "category"]  #, "component_code"
+
+df_lis_matched = pd.merge(
+    left=df_lis,
+    right=df_tecdoc,
+    how="left",
+    on=MATCHING_COLS,
+    suffixes=("_lis", "_tecdoc")
+)
+df_lis_matched["in_tecdoc"] = df_lis_matched["in_tecdoc"].replace(to_replace=[None], value=False)
+
+for col in ("model_year_start", ):  # , "model_year_end"
+    diff_in_years = df_lis_matched[f"{col}_lis"] - df_lis_matched[f"{col}_tecdoc"]
+    ix_keep = (diff_in_years.abs() <= 2) | (diff_in_years.isnull())
+    print(f"Dropping {len(df_lis_matched) - ix_keep.sum()} rows because model years to far apart")
+    df_lis_matched = df_lis_matched[ix_keep]
+
+df_matched = df_lis_matched[df_lis_matched["in_tecdoc"]]
+lis_id_with_n_types = df_matched.groupby("N-Type No.").apply(lambda x: x["N-Type No."].unique())
+unique_lis_types = df_lis_matched["type_id"].unique()
+
+print(f"Perentage matched = {len(lis_id_with_n_types)}/{len(unique_lis_types)} = {len(lis_id_with_n_types)/len(unique_lis_types)*100}%")
+
+# no match
+ix_explore = (
+    (df_tecdoc["type"].str.contains("1233"))
+    & (df_tecdoc["model"] == "atego")
+)
+
+# Here we have a match, but it doesn't work because we the lis type is 2628k (not 2628 k)
+ix_explore = (
+    (df_tecdoc["type"].str.contains("2628"))
+    & (df_tecdoc["model"] == "atego")
+)
+
+# Here we also have a match, but it doesn't work because we did not expand the slash 1828 l/k
+ix_explore = (
+    (df_lis["type"].str.contains("1828"))
+    & (df_lis["model"] == "atego")
+)
+a = df_lis[ix_explore]
