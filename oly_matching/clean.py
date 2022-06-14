@@ -1,4 +1,5 @@
 import re
+from typing import Union
 import pandas as pd
 from oly_matching import constants as c
 from oly_matching import utils
@@ -104,10 +105,23 @@ def clean_type_column_lis(df: pd.DataFrame) -> pd.DataFrame:
     type_series = remove_substrings_with_accolades(type_series)
     df["type"] = remove_axle_config_from_string(type_series)
 
-    df["type"] = df["type"].str.replace("../", "")
+    df["type"] = (
+        df["type"]
+        .str.replace("../", "")
+        .apply(remove_useless_characters)
+        .str.replace("\s+", "")
+    )
 
     # df = explode_subtype_by_letter(df)
     return df
+
+
+def clean_type_column_tecdoc(type_series: pd.Series) -> pd.Series:
+    return (
+        type_series
+        .apply(remove_useless_characters)
+        .str.replace("\s+", "")
+    )
 
 
 def remove_axle_config_from_string(series: pd.Series) -> pd.Series:
@@ -128,7 +142,7 @@ def get_type_without_model_column_lis(df: pd.DataFrame) -> pd.Series:
 
 
 def clean_engine_code_tecdoc(engine_series: pd.Series) -> pd.Series:
-    engine_series = engine_series.apply(lambda x: x[:6])
+    engine_series = engine_series.apply(_get_first_n_characters, n=6)
     engine_series = clean_whitespace(engine_series)
     engine_series = engine_series.str.replace("\s", "")
     engine_series = replace_none_like_string_with_none(engine_series)
@@ -136,17 +150,24 @@ def clean_engine_code_tecdoc(engine_series: pd.Series) -> pd.Series:
 
 
 def clean_engine_code_lis(engine_series: pd.Series) -> pd.Series:
-    engine_series = engine_series.apply(lambda x: x[:5])
+    engine_series = engine_series.apply(_get_first_n_characters, n=5)
     engine_series = replace_none_like_string_with_none(engine_series)
     return engine_series
+
+
+def _get_first_n_characters(s: Union[str, None], n: int) -> str:
+    try:
+        return s[:n]
+    except TypeError:
+        return s
 
 
 def replace_none_like_string_with_none(series: pd.Series) -> pd.Series:
     return series.replace(to_replace=["nan", "None", "none"], value=None)
 
 
-# def explode_subtype_by_letter(df: pd.DataFrame) -> pd.Series:
-#     df["type"] = df["type"].str.replace("../", "")
-#     df["type"] = clean_whitespace(df["type"])
-#     needs_expansion = df["type"].str.contains("^\d{3,4}\s[a-zA-Z]+/")  # 4 digits, space, letters, slash
-#     df.loc[needs_expansion, "type"].str.
+def explode_subtype_by_letter(df: pd.DataFrame) -> pd.Series:
+    df["type"] = df["type"].str.replace("../", "")
+    df["type"] = clean_whitespace(df["type"])
+    # 3 or 4 digits, space, letters, optional slash letters repeated
+    df["type_to_expand"] = df["type"].str.findall("\d{3,4}\s?\w+(?:/\w+)+")

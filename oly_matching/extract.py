@@ -9,7 +9,6 @@ def append_axle_configs_lis(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy(deep=True)
     n_records = len(df)
     print(f"# records in LIS before appending axle config: {len(df)}")
-    df = df.copy(deep=True)
     df["axle_configuration"] = (
         df["type"]
         .apply(lambda x: [s for s in c.UNIQUE_AXLE_CONFIGS if s in x])
