@@ -3,6 +3,7 @@ from typing import Union
 import pandas as pd
 from oly_matching import constants as c
 from oly_matching import utils
+import numpy as np
 
 ROMAN_NUMERALS = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5}
 
@@ -109,11 +110,12 @@ def clean_type_column_lis(df: pd.DataFrame) -> pd.DataFrame:
     type_series = df["type"]
     type_series = remove_euro_code(type_series)
     type_series = remove_substrings_with_accolades(type_series)
-    df["type"] = remove_axle_config_from_string(type_series)
+    type_series = remove_axle_config_from_string(type_series)
+    df["type"] = type_series.str.replace("\.\./", "")
+    df = expand_type_column_mercedes(df)
 
     df["type"] = (
         df["type"]
-        .str.replace("../", "")
         .apply(remove_useless_characters)
         .str.replace("\s+", "")
     )
@@ -122,12 +124,74 @@ def clean_type_column_lis(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def clean_type_column_tecdoc(type_series: pd.Series) -> pd.Series:
-    return (
-        type_series
+def expand_type_column_mercedes(df: pd.DataFrame) -> pd.DataFrame:
+    """Actros is split by slash, arocs by comma. Treat carefully!
+
+    Split by /: atego, actros (optional space), axor,
+    Split by ,: actros ii, arocs, and antos (xxxx, xxxx, xxxx LS)
+    """
+    df = df.copy()
+
+    # Deal with slash separated types
+    is_slash_separated = (
+        np.isin(df["model"], ["atego", "actros", "axor"])
+        & df["type"].str.contains("\w+\s?/")
+    )
+    df_slash = df[is_slash_separated].copy(True)
+    split_type = df_slash["type"].str.split("\s+").copy(True)
+    df_slash["base_type"] = split_type.apply(lambda x: x[0])
+    df_slash["subtypes"] = (
+        split_type
+        .apply(lambda x: x[1])
+        .str.split("\s?/\s?")
+    )
+    df_slash = df_slash.explode(column="subtypes")
+    df_slash["type"] = df_slash["base_type"] + " " + df_slash["subtypes"]
+
+    # Deal with comma separated types
+    df_rest = df[~is_slash_separated]
+    is_comma_separated = (
+        np.isin(df_rest["model"], ["actros ii", "arocs", "antos"])
+        & df_rest["type"].str.match("^\d+,\s")
+    )
+    df_comma = df_rest[is_comma_separated]
+    df_comma["base_types"] = (
+        df_comma["type"].copy(deep=True)
+        .str.findall("^\d{4}(?:,\s\d{4})+")
+        .apply(lambda x: x[0] if x else "")
+        .str.split(", ")
+    )
+    df_comma["stripped_type"] = (
+        df_comma["type"].copy(deep=True)
+        .str.replace("^\d{4}(?:,\s\d{4})+\s", "")
+    )
+    df_comma["sub_type"] = (
+        df_comma["stripped_type"]
+        .str.split(" ")
+        .apply(lambda x: x[0])
+        .str.extract("^(\w+)")
+    )
+    ix_keep = df_comma["sub_type"].notnull()
+    df_comma = df_comma[ix_keep]
+    df_comma = df_comma.explode(column="base_types")
+    df_comma["type"] = df_comma["base_types"] + " " + df_comma["sub_type"]
+
+    df_rest = df_rest[~is_comma_separated]
+
+    df_clean = pd.concat([df_rest, df_slash, df_comma], axis=0)
+    df_clean = df_clean.loc[:, df.columns]
+    return df_clean
+
+
+def clean_type_column_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy(deep=True)
+    df = utils.explode_column(df, "type")
+    df["type"] = (
+        df["type"]
         .apply(remove_useless_characters)
         .str.replace("\s+", "")
     )
+    return df
 
 
 def remove_axle_config_from_string(series: pd.Series) -> pd.Series:
@@ -147,14 +211,11 @@ def get_type_without_model_column_lis(df: pd.DataFrame) -> pd.Series:
     return df
 
 
-def clean_engine_code_tecdoc(engine_series: pd.Series) -> pd.Series:
-    engine_series = extract_mercedes_engine_code(engine_series)
-    return engine_series
-
-
-def clean_engine_code_lis(engine_series: pd.Series) -> pd.Series:
-    engine_series = extract_mercedes_engine_code(engine_series)
-    return engine_series
+def clean_engine_code(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy(deep=True)
+    df = utils.explode_column(df, "component_code")
+    df["component_code"] = extract_mercedes_engine_code(df["component_code"])
+    return df
 
 
 def extract_mercedes_engine_code(series: pd.Series) -> pd.Series:

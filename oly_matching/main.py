@@ -44,11 +44,12 @@ n_records_per_brand = df_lis["make"].value_counts(ascending=False)
 print(f"The ten biggest brands in LIS are:\n{n_records_per_brand.iloc[:10]}")
 print("We will take extra care trying to get the formatting between LIS and TecDoc right for those brands")
 
-# Take one of the largest brands. Done: "mercedes -> 15%
-# ix_keep = df_tecdoc["make"] == "MAN"
+# Take one of the largest brands. Done: "mercedes -> 6%
+# ix_keep = df_lis["make"] == "MAN"
 ix_keep = df_lis["make"].str.lower().str.contains("mercedes")
 df_lis = df_lis.loc[ix_keep, :]
 
+# ix_keep = df_tecdoc["make"] == "MAN"
 ix_keep = df_tecdoc["make"].str.lower().str.contains("mercedes")
 df_tecdoc = df_tecdoc.loc[ix_keep, :]
 
@@ -85,10 +86,6 @@ for col in c.STR_COLS:
     df_lis[col] = clean.clean_whitespace(df_lis[col])
     df_tecdoc[col] = clean.clean_whitespace(df_tecdoc[col])
 
-for col in ("type", "component_code"):
-    df_lis = utils.explode_column(df_lis, col)
-    df_tecdoc = utils.explode_column(df_tecdoc, col)
-
 df_lis["make"] = clean.clean_make_column(df_lis["make"])
 df_tecdoc["make"] = clean.clean_make_column(df_tecdoc["make"])
 
@@ -97,10 +94,10 @@ df_tecdoc = clean.clean_model_column_tecdoc(df_tecdoc)
 
 # TODO: expand the subtypes separated by XXXX letters/letters, or just letters/letters
 df_lis = clean.clean_type_column_lis(df_lis)
-df_tecdoc["type"] = clean.clean_type_column_tecdoc(df_tecdoc["type"])
+df_tecdoc = clean.clean_type_column_tecdoc(df_tecdoc)
 
-df_tecdoc["component_code"] = clean.clean_engine_code_tecdoc(df_tecdoc["component_code"])
-df_lis["component_code"] = clean.clean_engine_code_lis(df_lis["component_code"])
+df_tecdoc = clean.clean_engine_code(df_tecdoc)
+df_lis = clean.clean_engine_code(df_lis)
 
 # Matching
 # If the type is missing, we remove the row
@@ -146,7 +143,7 @@ df_lis_matched["in_tecdoc"] = df_lis_matched["in_tecdoc"].replace(to_replace=[No
 
 for col in ("model_year_start", ):  # , "model_year_end"
     diff_in_years = df_lis_matched[f"{col}_lis"] - df_lis_matched[f"{col}_tecdoc"]
-    ix_keep = (diff_in_years.abs() <= 5) | (diff_in_years.isnull())
+    ix_keep = (diff_in_years.abs() <= 2) | (diff_in_years.isnull())
     print(f"Dropping {len(df_lis_matched) - ix_keep.sum()} rows because model years to far apart")
     df_lis_matched = df_lis_matched[ix_keep]
 
@@ -168,15 +165,21 @@ unmatched_lis_ids = [x for x in unique_lis_types if x not in lis_id_with_n_types
 lis_record_is_not_matched = np.isin(df_lis_original["type_id"], unmatched_lis_ids)
 df_lis_original["is_matched"] = ~lis_record_is_not_matched
 
-performance_per_model = df_lis_original.groupby("model")["is_matched"].mean().round(2)
-types_per_model = df_lis_original.groupby("model").size()
-# performance_per_model = df_lis_original.groupby("model")["is_matched"].mean().round(2)
-# types_per_model = df_lis_original.groupby("model").size()
-types_per_model.name = "count unique ids"
-performance_per_model.name = "% ids matched"
-df_performance = pd.concat([performance_per_model, types_per_model], axis=1)
-df_performance = df_performance.sort_values(by="count unique ids", ascending=False)
-df_performance.to_excel("/Users/lennartdamen/Documents/code/olyslager/data/raw/mercedes_matching_performance_15_06_2022.xlsx")
+
+def get_performance_per_model(df: pd.DataFrame) -> pd.DataFrame:
+    performance_per_model = df.groupby("model")["is_matched"].mean().round(2) * 100
+    matched_per_model = df.groupby("model")["is_matched"].sum()
+    types_per_model = df.groupby("model").size()
+    types_per_model.name = "count unique ids"
+    performance_per_model.name = "% ids matched"
+    matched_per_model.name = "# ids matched"
+    df_performance = pd.concat([matched_per_model, performance_per_model, types_per_model], axis=1)
+    df_performance = df_performance.sort_values(by="count unique ids", ascending=False)
+    return df_performance
+
+
+df_performance = get_performance_per_model(df_lis_matched)
+df_performance.to_excel("/Users/lennartdamen/Documents/code/olyslager/data/raw/mercedes_matching_performance_15_06_2022_v2.xlsx")
 
 # lis_record_is_not_matched = np.isin(df_lis["type_id"], unmatched_lis_ids)
 # df_lis["is_matched"] = ~lis_record_is_not_matched
@@ -278,7 +281,7 @@ df_performance.to_excel("/Users/lennartdamen/Documents/code/olyslager/data/raw/m
 # - make can contain (BRA), but other than that fine
 # - model can contain Euro code
 # - type contains the model
-# - type: after the model, there's digit(s).digits space LETTER(optional /LETTERS/...)
+# - type: after the model, there's digit(s).digits space LETTER(optional /LETTERS/...), e.g. 10.163 LLT/LLS
 # - type can contain Euro code
 # - type can contain SCR/EGR/...? /EEV?
 # - type can contain the axle config (most records this is true)
@@ -290,5 +293,6 @@ df_performance.to_excel("/Users/lennartdamen/Documents/code/olyslager/data/raw/m
 
 # TecDoc
 # - model TG(letter) I/II,
+# - type theres digits.digits letters (sometimes comma letters, e.g. 26.460 DFLS, DFLRS)
 # - component code looks like D 4-digits LETTER/DIGIT-code
 # - component code can be separated by comma
