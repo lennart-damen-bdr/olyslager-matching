@@ -56,3 +56,29 @@ def extract_vehicle_type_lis(model_series: pd.Series) -> pd.Series:
     df_vehicle_types = pd.concat(vehicle_type_list, axis=1)
     vehicle_type_series = df_vehicle_types.apply(lambda x: ''.join(x), axis=1)
     return vehicle_type_series
+
+
+def get_first_n_characters(s: Union[str, None], n: int) -> str:
+    try:
+        return s[:n]
+    except TypeError:
+        return s
+
+
+def get_last_n_characters(s: Union[str, None], n: int) -> str:
+    try:
+        return s[-n:]
+    except TypeError:
+        return s
+
+
+def get_n_characters_before(s: Union[str, None], n: int) -> str:
+    try:
+        return s[:-n]
+    except TypeError:
+        return s
+
+
+def row_has_wildcard(series: pd.Series, n: int) -> pd.Series:
+    last_n_characters_lis = series.apply(get_last_n_characters, n=n)
+    return last_n_characters_lis.str.contains("x")

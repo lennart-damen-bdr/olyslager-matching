@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 
 from oly_matching import constants as c
@@ -5,14 +6,12 @@ from oly_matching import clean, extract, utils
 
 # TODO: ignoring country codes for matching for now! Check if okay
 
-df_tecdoc_original = pd.read_excel(
+df_tecdoc = pd.read_excel(
     io="/Users/lennartdamen/Documents/code/olyslager/data/raw/tecdoc.xlsx",
     parse_dates=[7, 8]
 )
-df_lis_original = pd.read_excel("/Users/lennartdamen/Documents/code/olyslager/data/raw/lis.xlsx")
+df_lis = pd.read_excel("/Users/lennartdamen/Documents/code/olyslager/data/raw/lis.xlsx")
 
-df_lis = df_lis_original.copy(deep=True)
-df_tecdoc = df_tecdoc_original.copy(deep=True)
 
 print(f"Tecdoc: {df_tecdoc.shape}")
 print(f"Lis: {df_lis.shape}")
@@ -46,11 +45,16 @@ print(f"The ten biggest brands in LIS are:\n{n_records_per_brand.iloc[:10]}")
 print("We will take extra care trying to get the formatting between LIS and TecDoc right for those brands")
 
 # Take one of the largest brands. Done: "mercedes -> 15%
+# ix_keep = df_tecdoc["make"] == "MAN"
 ix_keep = df_lis["make"].str.lower().str.contains("mercedes")
 df_lis = df_lis.loc[ix_keep, :]
 
 ix_keep = df_tecdoc["make"].str.lower().str.contains("mercedes")
 df_tecdoc = df_tecdoc.loc[ix_keep, :]
+
+# Save the original data to compare matches later
+df_lis_original = df_lis.copy(deep=True)
+df_tecdoc_original = df_tecdoc.copy(deep=True)
 
 # Extract LIS information from columns that is needed for the merge, but don't modify the columns yet
 df_lis = extract.append_axle_configs_lis(df_lis)
@@ -81,7 +85,6 @@ for col in c.STR_COLS:
     df_lis[col] = clean.clean_whitespace(df_lis[col])
     df_tecdoc[col] = clean.clean_whitespace(df_tecdoc[col])
 
-
 for col in ("type", "component_code"):
     df_lis = utils.explode_column(df_lis, col)
     df_tecdoc = utils.explode_column(df_tecdoc, col)
@@ -89,12 +92,6 @@ for col in ("type", "component_code"):
 df_lis["make"] = clean.clean_make_column(df_lis["make"])
 df_tecdoc["make"] = clean.clean_make_column(df_tecdoc["make"])
 
-# TODO: deal with actros mp4 / mp5 in model column tecdoc --> large issue
-# Seems like LIS does not contain information about this, so we will drop it
-# TODO: deal with conecto (0 345) model column tecdoc --> small issue
-# skipped
-# TODO: deal with kl/ln2 model column tecdoc --> small issue
-# skipped
 df_lis["model"] = clean.clean_model_column_lis(df_lis["model"])
 df_tecdoc = clean.clean_model_column_tecdoc(df_tecdoc)
 
@@ -116,20 +113,40 @@ df_tecdoc["in_tecdoc"] = True
 ix_keep = df_lis[REQUIRED_COLS].notnull().all(axis=1)
 df_lis = df_lis[ix_keep]
 
-MATCHING_COLS = ["make", "model", "type", "category", "component_code"]
+MATCHING_COLS = ["make", "model", "type", "category", "component_code_clean"]
 
-df_lis_matched = pd.merge(
-    left=df_lis,
-    right=df_tecdoc,
-    how="left",
-    on=MATCHING_COLS,
-    suffixes=("_lis", "_tecdoc")
-)
+df_lis_loop = df_lis.copy(deep=True)
+df_lis_loop = df_lis_loop.reset_index(drop=True)
+df_tecdoc = df_tecdoc.reset_index(drop=True)
+# Previously: just match. But for mercedes need to deal with wildcards!
+df_lis_loop["component_code_clean"] = df_lis_loop["component_code"].copy(deep=True)
+df_tecdoc["component_code_clean"] = df_tecdoc["component_code"].copy(deep=True)
+
+# Handling wildcards for Mercedes in LIS. Assumes TecDoc does NOT have any wildcards
+df_matched_list = []
+while df_lis_loop.shape[0] != 0:
+    row_ends_with_wildcard = df_lis_loop["component_code_clean"].str[-1] == "x"
+    df_lis_i = df_lis_loop[~row_ends_with_wildcard]
+
+    df_lis_matched = pd.merge(
+        left=df_lis_i,
+        right=df_tecdoc,
+        how="left",
+        on=MATCHING_COLS,
+        suffixes=("_lis", "_tecdoc")
+    )
+    df_matched_list.append(df_lis_matched)
+
+    df_lis_loop = df_lis_loop.drop(index=df_lis_i.index)
+    df_lis_loop["component_code_clean"] = df_lis_loop["component_code_clean"].str[:-1]
+    df_tecdoc["component_code_clean"] = df_tecdoc["component_code_clean"].str[:-1]
+
+df_lis_matched = pd.concat(df_matched_list)
 df_lis_matched["in_tecdoc"] = df_lis_matched["in_tecdoc"].replace(to_replace=[None], value=False)
 
 for col in ("model_year_start", ):  # , "model_year_end"
     diff_in_years = df_lis_matched[f"{col}_lis"] - df_lis_matched[f"{col}_tecdoc"]
-    ix_keep = (diff_in_years.abs() <= 2) | (diff_in_years.isnull())
+    ix_keep = (diff_in_years.abs() <= 5) | (diff_in_years.isnull())
     print(f"Dropping {len(df_lis_matched) - ix_keep.sum()} rows because model years to far apart")
     df_lis_matched = df_lis_matched[ix_keep]
 
@@ -137,19 +154,52 @@ ix_keep = (
     df_lis_matched["axle_configuration_lis"].isnull()
     | (df_lis_matched["axle_configuration_lis"] == df_lis_matched["axle_configuration_tecdoc"])
 )
+print(f"Dropping {ix_keep.sum()}/{df_lis_matched.shape[0]} records because axle config not matching")
 df_lis_matched = df_lis_matched[ix_keep]
 
 df_matched = df_lis_matched[df_lis_matched["in_tecdoc"]]
 lis_id_with_n_types = df_matched.groupby("type_id").apply(lambda x: x["N-Type No."].unique())
-unique_lis_types = df_lis["type_id"].unique()
+unique_lis_types = df_lis_original["type_id"].unique()
 
 print(f"Perentage matched = {len(lis_id_with_n_types)}/{len(unique_lis_types)} = {len(lis_id_with_n_types)/len(unique_lis_types)*100}%")
 
+# Analyze not matched LIS ID's
 unmatched_lis_ids = [x for x in unique_lis_types if x not in lis_id_with_n_types.index]
+lis_record_is_not_matched = np.isin(df_lis_original["type_id"], unmatched_lis_ids)
+df_lis_original["is_matched"] = ~lis_record_is_not_matched
 
-df_tecdoc_original = df_tecdoc_original.rename(columns=c.MATCHING_COLUMN_MAPPING)
-df_lis_original = df_lis_original[df_lis_original["component_group"] == "Engines"]
+performance_per_model = df_lis_original.groupby("model")["is_matched"].mean().round(2)
+types_per_model = df_lis_original.groupby("model").size()
+# performance_per_model = df_lis_original.groupby("model")["is_matched"].mean().round(2)
+# types_per_model = df_lis_original.groupby("model").size()
+types_per_model.name = "count unique ids"
+performance_per_model.name = "% ids matched"
+df_performance = pd.concat([performance_per_model, types_per_model], axis=1)
+df_performance = df_performance.sort_values(by="count unique ids", ascending=False)
+df_performance.to_excel("/Users/lennartdamen/Documents/code/olyslager/data/raw/mercedes_matching_performance_15_06_2022.xlsx")
 
+# lis_record_is_not_matched = np.isin(df_lis["type_id"], unmatched_lis_ids)
+# df_lis["is_matched"] = ~lis_record_is_not_matched
+#
+# ix_keep = (
+#     (df_lis["model"] == "atego")
+#     & (df_lis["type"] == "1018ko")
+#     & (df_lis["category"] == "trucks and buses (> 7.5t)")
+# )
+# df_lis_i = df_lis[ix_keep].sort_values(by=["model", "type"])
+#
+# ix_keep = (
+#     (df_tecdoc["model"] == "atego")
+#     & (df_tecdoc["type"] == "1018ko")
+#     & (df_tecdoc["category"] == "trucks and buses (> 7.5t)")
+# )
+# df_tecdoc_i = df_tecdoc[ix_keep].sort_values(by=["model", "type"])
+#
+# ix_keep = df_tecdoc_original["model"] == "ACTROS"
+# actros_count_tecdoc = df_tecdoc_original.loc[ix_keep, "component_code"].value_counts()
+#
+# ix_keep = df_lis_original["model"] == "Actros"
+# actros_count_lis = df_lis_original.loc[ix_keep, "component_code"].value_counts()
 
 # Mercedes examples:
 # Example 1 (14 June): model_year too strict
@@ -222,3 +272,23 @@ df_lis_original = df_lis_original[df_lis_original["component_group"] == "Engines
 # --- remove model from the type column from LIS
 # --- expand the slashes in the L/LL/LS/K (Tecdoc has xxxx AK or xxxxx S)
 # --- for both, add a component_code column that looks like OMxxx (forgetting LA and more specific engine codes)
+
+# MAN
+# LIS
+# - make can contain (BRA), but other than that fine
+# - model can contain Euro code
+# - type contains the model
+# - type: after the model, there's digit(s).digits space LETTER(optional /LETTERS/...)
+# - type can contain Euro code
+# - type can contain SCR/EGR/...? /EEV?
+# - type can contain the axle config (most records this is true)
+# - type can be split by comma, e.g. TGX 26.420, 26,480, 26.500 (6x4 BB) Euro 6 --> what is BB?
+# - type can be split by comma, e.g. TGS 35.430, 35.470, 35.510 BL,BB (8x4) (LK,TM) Euro 6d --> how to split this?
+# - component_code almost always split by comma
+# - component code can contain Euro code
+# - component code can have different formats, e.g. 224 (D0826 LFL03 Euro 2), D 0826 LF 08, 313 (MAN D2866 LF26/EDC/Euro3)
+
+# TecDoc
+# - model TG(letter) I/II,
+# - component code looks like D 4-digits LETTER/DIGIT-code
+# - component code can be separated by comma
