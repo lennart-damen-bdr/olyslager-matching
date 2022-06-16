@@ -1,27 +1,29 @@
+import logging
+
 import numpy as np
 import pandas as pd
 
 from oly_matching import constants as c
-from oly_matching import clean, extract, utils
+from oly_matching import clean, extract, match
 
 # TODO: ignoring country codes for matching for now! Check if okay
 
-print("Loading TecDoc records...")
+logging.info("Loading TecDoc records...")
 df_tecdoc = pd.read_excel(
     io="/Users/lennartdamen/Documents/code/olyslager/data/raw/tecdoc.xlsx",
     parse_dates=[7, 8]
 )
-print("Loading LIS records...")
+logging.info("Loading LIS records...")
 df_lis = pd.read_excel("/Users/lennartdamen/Documents/code/olyslager/data/raw/lis.xlsx")
-print("Loading complete.")
+logging.info("Loading complete.")
 
-print(f"Tecdoc: {df_tecdoc.shape}")
-print(f"Lis: {df_lis.shape}")
+logging.info(f"Tecdoc: {df_tecdoc.shape}")
+logging.info(f"Lis: {df_lis.shape}")
 
 # For POC, keep only the rows related to the engine
 ix_keep = df_lis["component_group"] == "Engines"
 df_lis = df_lis.loc[ix_keep, :]
-print(f"Lis after dropping all rows that are not 'Engines': {df_lis.shape}")
+logging.info(f"Lis after dropping all rows that are not 'Engines': {df_lis.shape}")
 
 # For the moment, we only keep the columns we care about
 lis_cols = [x for x in c.MATCHING_COLUMN_MAPPING.values() if x != "axle_configuration"]
@@ -43,16 +45,16 @@ df_tecdoc = df_tecdoc.rename(columns=c.MATCHING_COLUMN_MAPPING)
 
 # For further cleaning, we focus on the largest brands (=make) in LIS
 n_records_per_brand = df_lis["make"].value_counts(ascending=False)
-print(f"The ten biggest brands in LIS are:\n{n_records_per_brand.iloc[:10]}")
-print("We will take extra care trying to get the formatting between LIS and TecDoc right for those brands")
+logging.info(f"The ten biggest brands in LIS are:\n{n_records_per_brand.iloc[:10]}")
+logging.info("We will take extra care trying to get the formatting between LIS and TecDoc right for those brands")
 
-# Take one of the largest brands. Done: "mercedes -> 6%
-# ix_keep = df_lis["make"] == "MAN"
-ix_keep = df_lis["make"].str.lower().str.contains("mercedes")
+# Take one of the largest brands. Done: "mercedes -> 7%
+ix_keep = df_lis["make"] == "MAN"
+# ix_keep = df_lis["make"].str.lower().str.contains("mercedes")
 df_lis = df_lis.loc[ix_keep, :]
 
-# ix_keep = df_tecdoc["make"] == "MAN"
-ix_keep = df_tecdoc["make"].str.lower().str.contains("mercedes")
+ix_keep = df_tecdoc["make"] == "MAN"
+# ix_keep = df_tecdoc["make"].str.lower().str.contains("mercedes")
 df_tecdoc = df_tecdoc.loc[ix_keep, :]
 
 # Save the original data to compare matches later
@@ -110,56 +112,34 @@ df_tecdoc["in_tecdoc"] = True
 
 ix_keep = df_lis[REQUIRED_COLS].notnull().all(axis=1)
 df_lis = df_lis[ix_keep]
-
-MATCHING_COLS = ["make", "model", "type", "category", "component_code_clean"]
-
-df_lis_loop = df_lis.copy(deep=True)
-df_lis_loop = df_lis_loop.reset_index(drop=True)
+df_lis = df_lis.reset_index(drop=True)
 df_tecdoc = df_tecdoc.reset_index(drop=True)
-# Previously: just match. But for mercedes need to deal with wildcards!
-df_lis_loop["component_code_clean"] = df_lis_loop["component_code"].copy(deep=True)
-df_tecdoc["component_code_clean"] = df_tecdoc["component_code"].copy(deep=True)
 
-# Handling wildcards for Mercedes in LIS. Assumes TecDoc does NOT have any wildcards
-df_matched_list = []
-while df_lis_loop.shape[0] != 0:
-    row_ends_with_wildcard = df_lis_loop["component_code_clean"].str[-1] == "x"
-    df_lis_i = df_lis_loop[~row_ends_with_wildcard]
+is_mercedes_record = df_lis["make"] == "mercedesbenz"
+df_lis_mercedes = df_lis[is_mercedes_record]
+df_rest = df_lis[~is_mercedes_record]
 
-    df_lis_matched = pd.merge(
-        left=df_lis_i,
-        right=df_tecdoc,
-        how="left",
-        on=MATCHING_COLS,
-        suffixes=("_lis", "_tecdoc")
-    )
-    df_matched_list.append(df_lis_matched)
-
-    df_lis_loop = df_lis_loop.drop(index=df_lis_i.index)
-    df_lis_loop["component_code_clean"] = df_lis_loop["component_code_clean"].str[:-1]
-    df_tecdoc["component_code_clean"] = df_tecdoc["component_code_clean"].str[:-1]
-
-df_lis_matched = pd.concat(df_matched_list)
+df_lis_matched = match.match_mercedes(df_lis_mercedes, df_tecdoc)
 df_lis_matched["in_tecdoc"] = df_lis_matched["in_tecdoc"].replace(to_replace=[None], value=False)
 
 for col in ("model_year_start", ):  # , "model_year_end"
     diff_in_years = df_lis_matched[f"{col}_lis"] - df_lis_matched[f"{col}_tecdoc"]
     ix_keep = (diff_in_years.abs() <= 2) | (diff_in_years.isnull())
-    print(f"Dropping {len(df_lis_matched) - ix_keep.sum()} rows because model years to far apart")
+    logging.info(f"Dropping {len(df_lis_matched) - ix_keep.sum()} rows because model years to far apart")
     df_lis_matched = df_lis_matched[ix_keep]
 
 ix_keep = (
     df_lis_matched["axle_configuration_lis"].isnull()
     | (df_lis_matched["axle_configuration_lis"] == df_lis_matched["axle_configuration_tecdoc"])
 )
-print(f"Dropping {ix_keep.sum()}/{df_lis_matched.shape[0]} records because axle config not matching")
+logging.info(f"Dropping {ix_keep.sum()}/{df_lis_matched.shape[0]} records because axle config not matching")
 df_lis_matched = df_lis_matched[ix_keep]
 
 df_matched = df_lis_matched[df_lis_matched["in_tecdoc"]]
 lis_id_with_n_types = df_matched.groupby("type_id").apply(lambda x: x["N-Type No."].unique())
 unique_lis_types = df_lis_original["type_id"].unique()
 
-print(f"Perentage matched = {len(lis_id_with_n_types)}/{len(unique_lis_types)} = {len(lis_id_with_n_types)/len(unique_lis_types)*100}%")
+logging.info(f"Perentage matched = {len(lis_id_with_n_types)}/{len(unique_lis_types)} = {len(lis_id_with_n_types)/len(unique_lis_types)*100}%")
 
 # Analyze not matched LIS ID's
 unmatched_lis_ids = [x for x in unique_lis_types if x not in lis_id_with_n_types.index]
@@ -188,7 +168,7 @@ ix_keep = engine_codes.notnull()
 lis_types_with_engine_code = df_lis_original.loc[ix_keep, "type_id"].unique()
 has_engine_code = np.isin(df_matched["type_id"], lis_types_with_engine_code)
 lis_id_with_n_types = df_matched[has_engine_code].groupby("type_id").apply(lambda x: x["N-Type No."].unique())
-print(
+logging.info(
     "For all LIS types that have an engine code, "
     f"{len(lis_id_with_n_types)}/{len(lis_types_with_engine_code)} "
     f"={len(lis_id_with_n_types)/len(lis_types_with_engine_code)*100}% get one or more N-types"

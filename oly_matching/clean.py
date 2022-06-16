@@ -42,11 +42,11 @@ def convert_time_cols_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
 def format_string_column(series: pd.Series) -> pd.Series:
     series = series.copy(deep=True)
     series = series.str.lower()
-    series = series.apply(remove_useless_characters)
+    series = series.apply(remove_special_characters)
     return series
 
 
-def remove_useless_characters(x: str) -> str:
+def remove_special_characters(x: str) -> str:
     """Removes all special characters, but keeps the ', ' (comma-space) intact"""
     words = [re.sub(r"[^a-zA-Z0-9]+", "", word) for word in x.split()]
     return " ".join(words)
@@ -77,6 +77,7 @@ def clean_model_column_lis(model_series: pd.Series) -> pd.Series:
     clean_series = remove_euro_code(model_series)
     clean_series = remove_vehicle_type_lis(clean_series)
     clean_series = clean_whitespace(clean_series)
+    clean_series = clean_series.replace("tgl/4", "tgl")
     return clean_series
 
 
@@ -97,13 +98,15 @@ def clean_model_column_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
         actros_letter = f"actros {letter} "
         actros_number = f"actros {number} "
         df["model"] = df["model"].str.replace(actros_number, actros_letter)
-    df = utils.explode_column(df, col="model", delimiter="/")
+    df = utils.explode_column(df, col="model", delimiter="/")  # for mercedes, possibly for other makes
 
     is_man_record = df["make"] == "man"
     if is_man_record.sum() > 0:
         df_man = df[is_man_record]
         df_rest = df[~is_man_record]
         df_man["model"] = remove_roman_numeral_from_end(df["model"])
+        is_m2000_row = df_man["model"].str.startswith("m 2000")
+        df_man.loc[is_m2000_row, "model"] = "m2000"
         df = pd.concat([df_rest, df_man])
     df["model"] = clean_whitespace(df["model"])
     return df
@@ -118,19 +121,17 @@ def clean_type_column_lis(df: pd.DataFrame) -> pd.DataFrame:
     type_series = remove_substrings_with_accolades(type_series)
     type_series = remove_axle_config_from_string(type_series)
     df["type"] = type_series.str.replace("\.\./", "")
-    df = expand_type_column_mercedes(df)
+    df = expand_type_column(df)
 
     df["type"] = (
         df["type"]
-        .apply(remove_useless_characters)
+        .apply(remove_special_characters)
         .str.replace("\s+", "")
     )
-
-    # df = explode_subtype_by_letter(df)
     return df
 
 
-def expand_type_column_mercedes(df: pd.DataFrame) -> pd.DataFrame:
+def expand_type_column(df: pd.DataFrame) -> pd.DataFrame:
     """Actros is split by slash, arocs by comma. Treat carefully!
 
     Split by /: atego, actros (optional space), axor,
@@ -140,8 +141,8 @@ def expand_type_column_mercedes(df: pd.DataFrame) -> pd.DataFrame:
 
     # Deal with slash separated types
     is_slash_separated = (
-        np.isin(df["model"], ["atego", "actros", "axor"])
-        & df["type"].str.contains("\w+\s?/")
+        # np.isin(df["model"], ["atego", "actros", "axor"])
+        df["type"].str.contains("\w+\s?/")
     )
     df_slash = df[is_slash_separated].copy(True)
     split_type = df_slash["type"].str.split("\s+").copy(True)
@@ -157,8 +158,8 @@ def expand_type_column_mercedes(df: pd.DataFrame) -> pd.DataFrame:
     # Deal with comma separated types
     df_rest = df[~is_slash_separated]
     is_comma_separated = (
-        np.isin(df_rest["model"], ["actros ii", "arocs", "antos"])
-        & df_rest["type"].str.match("^\d+,\s")
+        # np.isin(df_rest["model"], ["actros ii", "arocs", "antos"])
+        df_rest["type"].str.match("^\d+,\s")
     )
     df_comma = df_rest[is_comma_separated]
     df_comma["base_types"] = (
@@ -191,10 +192,13 @@ def expand_type_column_mercedes(df: pd.DataFrame) -> pd.DataFrame:
 
 def clean_type_column_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy(deep=True)
+    # TODO: how to deal with MAN
+    is_man_record = df["make"] == "man"
+    df_man = df[is_man_record]
     df = utils.explode_column(df, "type")
     df["type"] = (
         df["type"]
-        .apply(remove_useless_characters)
+        .apply(remove_special_characters)
         .str.replace("\s+", "")
     )
     return df
@@ -232,13 +236,6 @@ def extract_mercedes_engine_code(series: pd.Series) -> pd.Series:
 
 def replace_none_like_string_with_none(series: pd.Series) -> pd.Series:
     return series.replace(to_replace=["nan", "None", "none"], value=None)
-
-
-def explode_subtype_by_letter(df: pd.DataFrame) -> pd.Series:
-    df["type"] = df["type"].str.replace("../", "")
-    df["type"] = clean_whitespace(df["type"])
-    # 3 or 4 digits, space, letters, optional slash letters repeated
-    df["type_to_expand"] = df["type"].str.findall("\d{3,4}\s?\w+(?:/\w+)+")
 
 
 def remove_roman_numeral_from_end(series: pd.Series) -> pd.Series:
