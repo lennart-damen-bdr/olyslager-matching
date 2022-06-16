@@ -45,12 +45,12 @@ print(f"The ten biggest brands in LIS are:\n{n_records_per_brand.iloc[:10]}")
 print("We will take extra care trying to get the formatting between LIS and TecDoc right for those brands")
 
 # Take one of the largest brands. Done: "mercedes -> 6%
-# ix_keep = df_lis["make"] == "MAN"
-ix_keep = df_lis["make"].str.lower().str.contains("mercedes")
+ix_keep = df_lis["make"] == "MAN"
+# ix_keep = df_lis["make"].str.lower().str.contains("mercedes")
 df_lis = df_lis.loc[ix_keep, :]
 
-# ix_keep = df_tecdoc["make"] == "MAN"
-ix_keep = df_tecdoc["make"].str.lower().str.contains("mercedes")
+ix_keep = df_tecdoc["make"] == "MAN"
+# ix_keep = df_tecdoc["make"].str.lower().str.contains("mercedes")
 df_tecdoc = df_tecdoc.loc[ix_keep, :]
 
 # Save the original data to compare matches later
