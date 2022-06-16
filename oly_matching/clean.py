@@ -100,10 +100,11 @@ def clean_model_column_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
     df = utils.explode_column(df, col="model", delimiter="/")
 
     is_man_record = df["make"] == "man"
-    df_man = df[is_man_record]
-    df_rest = df[~is_man_record]
-    df_man["model"] = remove_roman_numeral_from_end(df["model"])
-    df = pd.concat([df_rest, df_man])
+    if is_man_record.sum() > 0:
+        df_man = df[is_man_record]
+        df_rest = df[~is_man_record]
+        df_man["model"] = remove_roman_numeral_from_end(df["model"])
+        df = pd.concat([df_rest, df_man])
     df["model"] = clean_whitespace(df["model"])
     return df
 

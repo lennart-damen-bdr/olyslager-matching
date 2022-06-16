@@ -6,12 +6,14 @@ from oly_matching import clean, extract, utils
 
 # TODO: ignoring country codes for matching for now! Check if okay
 
+print("Loading TecDoc records...")
 df_tecdoc = pd.read_excel(
     io="/Users/lennartdamen/Documents/code/olyslager/data/raw/tecdoc.xlsx",
     parse_dates=[7, 8]
 )
+print("Loading LIS records...")
 df_lis = pd.read_excel("/Users/lennartdamen/Documents/code/olyslager/data/raw/lis.xlsx")
-
+print("Loading complete.")
 
 print(f"Tecdoc: {df_tecdoc.shape}")
 print(f"Lis: {df_lis.shape}")
@@ -45,12 +47,12 @@ print(f"The ten biggest brands in LIS are:\n{n_records_per_brand.iloc[:10]}")
 print("We will take extra care trying to get the formatting between LIS and TecDoc right for those brands")
 
 # Take one of the largest brands. Done: "mercedes -> 6%
-ix_keep = df_lis["make"] == "MAN"
-# ix_keep = df_lis["make"].str.lower().str.contains("mercedes")
+# ix_keep = df_lis["make"] == "MAN"
+ix_keep = df_lis["make"].str.lower().str.contains("mercedes")
 df_lis = df_lis.loc[ix_keep, :]
 
-ix_keep = df_tecdoc["make"] == "MAN"
-# ix_keep = df_tecdoc["make"].str.lower().str.contains("mercedes")
+# ix_keep = df_tecdoc["make"] == "MAN"
+ix_keep = df_tecdoc["make"].str.lower().str.contains("mercedes")
 df_tecdoc = df_tecdoc.loc[ix_keep, :]
 
 # Save the original data to compare matches later
@@ -92,7 +94,6 @@ df_tecdoc["make"] = clean.clean_make_column(df_tecdoc["make"])
 df_lis["model"] = clean.clean_model_column_lis(df_lis["model"])
 df_tecdoc = clean.clean_model_column_tecdoc(df_tecdoc)
 
-# TODO: expand the subtypes separated by XXXX letters/letters, or just letters/letters
 df_lis = clean.clean_type_column_lis(df_lis)
 df_tecdoc = clean.clean_type_column_tecdoc(df_tecdoc)
 
@@ -180,6 +181,18 @@ def get_performance_per_model(df: pd.DataFrame) -> pd.DataFrame:
 
 df_performance = get_performance_per_model(df_lis_matched)
 df_performance.to_excel("/Users/lennartdamen/Documents/code/olyslager/data/raw/mercedes_matching_performance_15_06_2022_v2.xlsx")
+
+# What % of matches can we expect if the engine code is NOT missing?
+engine_codes = clean.extract_mercedes_engine_code(df_lis_original["component_code"])
+ix_keep = engine_codes.notnull()
+lis_types_with_engine_code = df_lis_original.loc[ix_keep, "type_id"].unique()
+has_engine_code = np.isin(df_matched["type_id"], lis_types_with_engine_code)
+lis_id_with_n_types = df_matched[has_engine_code].groupby("type_id").apply(lambda x: x["N-Type No."].unique())
+print(
+    "For all LIS types that have an engine code, "
+    f"{len(lis_id_with_n_types)}/{len(lis_types_with_engine_code)} "
+    f"={len(lis_id_with_n_types)/len(lis_types_with_engine_code)*100}% get one or more N-types"
+)
 
 # lis_record_is_not_matched = np.isin(df_lis["type_id"], unmatched_lis_ids)
 # df_lis["is_matched"] = ~lis_record_is_not_matched
