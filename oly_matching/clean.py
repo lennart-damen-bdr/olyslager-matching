@@ -98,7 +98,13 @@ def clean_model_column_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
         actros_number = f"actros {number} "
         df["model"] = df["model"].str.replace(actros_number, actros_letter)
     df = utils.explode_column(df, col="model", delimiter="/")
-    # df["model"] = remove_roman_numeral_from_end(df["model"])  # for MAN, careful to not mess up mercedes!
+
+    is_man_record = df["make"] == "man"
+    if is_man_record.sum() > 0:
+        df_man = df[is_man_record]
+        df_rest = df[~is_man_record]
+        df_man["model"] = remove_roman_numeral_from_end(df["model"])
+        df = pd.concat([df_rest, df_man])
     df["model"] = clean_whitespace(df["model"])
     return df
 
