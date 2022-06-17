@@ -82,3 +82,16 @@ def get_n_characters_before(s: Union[str, None], n: int) -> str:
 def row_has_wildcard(series: pd.Series, n: int) -> pd.Series:
     last_n_characters_lis = series.apply(get_last_n_characters, n=n)
     return last_n_characters_lis.str.contains("x")
+
+
+def extract_and_append_relevant_data_lis(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy(deep=True)
+    # Extract LIS information from columns that is needed for the merge, but don't modify the columns yet
+    df = append_axle_configs_lis(df)
+
+    # Extract extra information from LIS, not necessarily needed for merge but nice to have
+    for col in ("model", "component_code"):  # "type" for other brands than Mercedes
+        df[f"euro_{col}_lis"] = extract_euro_code(df[col])
+    df["country_lis"] = extract_country_from_make_lis(df["make"])
+    df["vehicly_type_lis"] = extract_vehicle_type_lis(df["model"])
+    return df

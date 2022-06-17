@@ -1,13 +1,22 @@
+import logging
 import pandas as pd
 
 MERCEDES_MATCHING_COLS = ["make", "model", "type", "category", "component_code_clean"]
 
 
 def match_mercedes(df_lis: pd.DataFrame, df_tecdoc: pd.DataFrame) -> pd.DataFrame:
-    """Tries to match every record from lis against a record from tecdoc
+    """Tries to match every record from lis against a record from tecdoc (left join)
 
     Assumes df_lis and df_tecdoc are already clean!
     """
+    df_lis_matched = match_mercedes_on_required_columns(df_lis, df_tecdoc)
+    df_lis_matched = keep_records_start_year_close(df_lis_matched)
+    df_lis_matched = keep_records_with_matching_axle_config(df_lis_matched)
+    df_lis_matched["in_tecdoc"] = df_lis_matched["in_tecdoc"].replace(to_replace=[None], value=False)
+    return df_lis_matched
+
+
+def match_mercedes_on_required_columns(df_lis: pd.DataFrame, df_tecdoc: pd.DataFrame) -> pd.DataFrame:
     # Handling wildcards for Mercedes in LIS. Assumes TecDoc does NOT have any wildcards
     df_lis_loop = df_lis.copy(deep=True)
     df_tecdoc = df_tecdoc.copy(deep=True)
@@ -35,3 +44,20 @@ def match_mercedes(df_lis: pd.DataFrame, df_tecdoc: pd.DataFrame) -> pd.DataFram
     df_lis_matched = pd.concat(df_matched_list)
     df_lis_matched = df_lis_matched.drop(columns=["component_code_clean"])
     return df_lis_matched
+
+
+def keep_records_start_year_close(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy(deep=True)
+    diff_in_years = df[f"model_year_start_lis"] - df[f"model_year_start_tecdoc"]
+    ix_keep = (diff_in_years.abs() <= 2) | (diff_in_years.isnull())
+    logging.info(f"Dropping {len(df) - ix_keep.sum()} rows because model years to far apart")
+    return df[ix_keep]
+
+
+def keep_records_with_matching_axle_config(df: pd.DataFrame) -> pd.DataFrame:
+    ix_keep = (
+            df["axle_configuration_lis"].isnull()
+            | (df["axle_configuration_lis"] == df["axle_configuration_tecdoc"])
+    )
+    logging.info(f"Dropping {ix_keep.sum()}/{df.shape[0]} records because axle config not matching")
+    return df[ix_keep]

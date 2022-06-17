@@ -1,11 +1,28 @@
 import re
-from typing import Union
+import logging
+import numpy as np
 import pandas as pd
 from oly_matching import constants as c
 from oly_matching import utils
-import numpy as np
 
 ROMAN_NUMERALS = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5}
+
+
+def keep_engine_records_lis(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy(deep=True)
+    ix_keep = df["component_group"] == "Engines"
+    logging.info(f"Lis after dropping {len(df) - ix_keep.sum()} rows that are not 'Engines': {df.shape}")
+    df = df.loc[ix_keep, :]
+    return df
+
+
+# TODO: change this function according to which records you want to match
+#  currently, we only keep records for mercedes-benz
+def filter_records(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy(deep=True)
+    ix_keep = df["make"].str.lower().str.contains("mercedes")
+    df = df.loc[ix_keep, :]
+    return df
 
 
 def clean_whitespace(series: pd.Series) -> pd.Series:
@@ -141,8 +158,8 @@ def expand_type_column(df: pd.DataFrame) -> pd.DataFrame:
 
     # Deal with slash separated types
     is_slash_separated = (
-        # np.isin(df["model"], ["atego", "actros", "axor"])
-        df["type"].str.contains("\w+\s?/")
+        (np.isin(df["model"], ["atego", "actros", "axor"]))
+        & (df["type"].str.contains("\w+\s?/"))
     )
     df_slash = df[is_slash_separated].copy(True)
     split_type = df_slash["type"].str.split("\s+").copy(True)
@@ -158,8 +175,8 @@ def expand_type_column(df: pd.DataFrame) -> pd.DataFrame:
     # Deal with comma separated types
     df_rest = df[~is_slash_separated]
     is_comma_separated = (
-        # np.isin(df_rest["model"], ["actros ii", "arocs", "antos"])
-        df_rest["type"].str.match("^\d+,\s")
+        (np.isin(df_rest["model"], ["actros ii", "arocs", "antos"]))
+        & (df_rest["type"].str.match("^\d+,\s"))
     )
     df_comma = df_rest[is_comma_separated]
     df_comma["base_types"] = (
@@ -243,3 +260,36 @@ def remove_roman_numeral_from_end(series: pd.Series) -> pd.Series:
     roman_regex_group = "|".join(ROMAN_NUMERALS.keys())
     pattern = f"\s[{roman_regex_group}]+$"
     return series.str.replace(pattern, "")
+
+
+def clean_lis(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy(deep=True)
+    df["category"] = clean_category_column_lis(df["category"])
+    df[c.STR_COLS] = (
+        df[c.STR_COLS]
+        .astype("string")
+        .apply(lambda x: x.str.lower())
+    )
+    for col in c.STR_COLS:
+        df[col] = clean_whitespace(df[col])
+    df["make"] = clean_make_column(df["make"])
+    df["model"] = clean_model_column_lis(df["model"])
+    df = clean_type_column_lis(df)
+    df = clean_engine_code(df)
+    return df
+
+
+def clean_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
+    df["category"] = clean_body_type_column_tecdoc(df["category"])
+    df[c.STR_COLS] = (
+        df[c.STR_COLS]
+        .astype("string")
+        .apply(lambda x: x.str.lower())
+    )
+    for col in c.STR_COLS:
+        df[col] = clean_whitespace(df[col])
+    df["make"] = clean_make_column(df["make"])
+    df = clean_model_column_tecdoc(df)
+    df = clean_type_column_tecdoc(df)
+    df = clean_engine_code(df)
+    return df

@@ -34,6 +34,14 @@ MATCHING_COLUMN_MAPPING = {
     "Axle Configuration": "axle_configuration"
 }
 
+# We only keep relevant columns in the matching algorithm
+LIS_COLUMNS = [x for x in MATCHING_COLUMN_MAPPING.values() if x != "axle_configuration"]
+LIS_COLUMNS += ["type_id"]
+
+TECDOC_COLUMNS = list(MATCHING_COLUMN_MAPPING.keys())
+TECDOC_COLUMNS += ["N-Type No."]
+
+# Cleaning
 STR_COLS = ['make', 'model', 'type', 'category', 'component_code', 'axle_configuration']
 
 BODY_TYPE_CATEGORY_MAPPING = {
@@ -85,3 +93,6 @@ ALLOWED_COUNTRY_CODES = ["usa / can", "eu", "usa", "bra", "itl", "mb", "rk"]
 # ["USA / CAN", "EU", "USA", "BRA", "ITL", "MB", "RK"]
 
 VEHICLE_TYPES_LIS = ["construction", "tractor", "chassis"]  # for cleaning model column, could be other columns too
+
+# Matching
+REQUIRED_MATCHING_COLS = ["make", "model", "type", "component_code"]
