@@ -1,4 +1,5 @@
 from typing import Union
+import logging
 import pandas as pd
 from oly_matching import constants as c
 
@@ -8,13 +9,13 @@ from oly_matching import constants as c
 def append_axle_configs_lis(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy(deep=True)
     n_records = len(df)
-    print(f"# records in LIS before appending axle config: {len(df)}")
+    logging.info(f"# records in LIS before appending axle config: {len(df)}")
     df["axle_configuration"] = (
         df["type"]
         .apply(lambda x: [s for s in c.UNIQUE_AXLE_CONFIGS if s in x])
     )
     df = df.explode(column="axle_configuration")
-    print(f"Added {len(df) - n_records} records, now LIS has {len(df)} records")
+    logging.info(f"Added {len(df) - n_records} records, now LIS has {len(df)} records")
     return df
 
 
@@ -56,32 +57,6 @@ def extract_vehicle_type_lis(model_series: pd.Series) -> pd.Series:
     df_vehicle_types = pd.concat(vehicle_type_list, axis=1)
     vehicle_type_series = df_vehicle_types.apply(lambda x: ''.join(x), axis=1)
     return vehicle_type_series
-
-
-def get_first_n_characters(s: Union[str, None], n: int) -> str:
-    try:
-        return s[:n]
-    except TypeError:
-        return s
-
-
-def get_last_n_characters(s: Union[str, None], n: int) -> str:
-    try:
-        return s[-n:]
-    except TypeError:
-        return s
-
-
-def get_n_characters_before(s: Union[str, None], n: int) -> str:
-    try:
-        return s[:-n]
-    except TypeError:
-        return s
-
-
-def row_has_wildcard(series: pd.Series, n: int) -> pd.Series:
-    last_n_characters_lis = series.apply(get_last_n_characters, n=n)
-    return last_n_characters_lis.str.contains("x")
 
 
 def extract_and_append_relevant_data_lis(df: pd.DataFrame) -> pd.DataFrame:

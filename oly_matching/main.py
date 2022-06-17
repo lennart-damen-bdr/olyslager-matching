@@ -12,7 +12,7 @@ def main(
     lis_path: str = "/Users/lennartdamen/Documents/code/olyslager/data/raw/lis.xlsx",
     tecdoc_path: str = "/Users/lennartdamen/Documents/code/olyslager/data/raw/tecdoc.xlsx",
     output_folder: str = "/Users/lennartdamen/Documents/code/olyslager/data/output",
-):
+) -> None:
     """Main script. Loads, cleans, matches, and analyzes lis and tecdoc data
 
     Creates 3 files:
@@ -91,7 +91,7 @@ def main(
 
     unique_lis_types = df_lis_original["type_id"].unique()
     unmatched_lis_ids = [x for x in unique_lis_types if x not in lis_id_with_n_types.index]
-    pd.Series(unmatched_lis_ids).to_csv(f"{output_folder}/unmatched_lis_ds.csv", index=False)
+    pd.Series(unmatched_lis_ids).to_csv(f"{output_folder}/unmatched_lis_ids.csv", index=False)
 
     logging.info(
         f"Perentage matched = {len(lis_id_with_n_types)}/{len(unique_lis_types)} = "

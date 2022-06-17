@@ -7,7 +7,7 @@ LOGGING_FORMAT = (
 )
 
 
-def configure_logger(level: str):
+def configure_logger(level: int) -> None:
     """
     Define logs level and formats.
 
