@@ -15,9 +15,15 @@ def main(
 ):
     """Main script. Loads, cleans, matches, and analyzes lis and tecdoc data
 
+    Creates 3 files:
+    - lis_records_with_match.csv: for each LIS type ID, state which N-types correspond to it
+    - unmatched_lis_ds.csv: list of LIS ID's for which the algorithm could not find a match at all
+    - lis_records_with_match.csv: detailed records from LIS, left-joined with corresponding TecDoc records
+
     Args:
         lis_path: path to LIS excel file
         tecdoc_path: path to TecDoc excel file
+        output_folder: where to store the output files
     """
     logging.info("Loading TecDoc records...")
     df_tecdoc = pd.read_excel(
