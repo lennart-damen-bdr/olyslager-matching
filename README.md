@@ -30,10 +30,12 @@ directly on the command line. The `olyslager match` command takes three optional
 - `--lis-path`: path to LIS excel file
 - `--tecdoc-path`: path to TecDoc excel file
 - `--output-folder`: where to store the output files
-For instance, you could enter: `olyslager match --lis-path="/path/to/folder/lis.xlsx"`
+
+For instance, you could enter:
+`olyslager match --lis-path="/path/to/my_folder/lis.xlsx"`
 
 Regardless of the installation method, the output files will appear in `./data/output`:
-- lis_records_with_match.csv: for each LIS type ID, state which N-types correspond to it
+- lis_ids_with_n_types.csv: for each LIS type ID, state which N-types correspond to it
 - unmatched_lis_ids.csv: list of LIS ID's for which the algorithm could not find a match at all
 - lis_records_with_match.csv: detailed records from LIS, left-joined with corresponding TecDoc records
 

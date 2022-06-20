@@ -12,7 +12,7 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
     """Main script. Loads, cleans, matches, and analyzes lis and tecdoc data
 
     Creates 3 files:
-    - lis_records_with_match.csv: for each LIS type ID, state which N-types correspond to it
+    - lis_ids_with_n_types.csv: for each LIS type ID, state which N-types correspond to it
     - unmatched_lis_ids.csv: list of LIS ID's for which the algorithm could not find a match at all
     - lis_records_with_match.csv: detailed records from LIS, left-joined with corresponding TecDoc records
 
