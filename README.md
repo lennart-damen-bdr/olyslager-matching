@@ -23,10 +23,12 @@ First, make sure to add two files to the `./data/raw` folder:
 - `lis.xlsx`, the LIS records
 - `tecdoc.xlsx`, the TecDoc records.
 
-To start the matching process using a docker container, run: `docker-compose up`.
+To start the matching process using a docker container, run: `docker-compose up`. The default command for the container
+is `olyslager match`. This command is coupled to the python-entrypoint defined in `./oly_matching/cli.py`,
+under the function `match`.
 
 If you have installed the package on your host system directly, you can run: `olyslager match`
-directly on the command line. The `olyslager match` command takes three optional arguments:
+directly on the command line.  The `olyslager match` command takes three optional arguments:
 - `--lis-path`: path to LIS excel file
 - `--tecdoc-path`: path to TecDoc excel file
 - `--output-folder`: where to store the output files (this folder must already exist)

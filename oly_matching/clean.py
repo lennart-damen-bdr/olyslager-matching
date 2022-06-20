@@ -46,8 +46,8 @@ def clean_category_value_lis(x: str):
     return None
 
 
-def clean_body_type_column_tecdoc(series: pd.Series) -> pd.Series:
-    return series.replace(c.BODY_TYPE_CATEGORY_MAPPING)
+def clean_category_column_tecdoc(series: pd.Series) -> pd.Series:
+    return series.replace(c.CATEGORY_MAPPING)
 
 
 def convert_time_cols_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
@@ -192,12 +192,12 @@ def expand_type_column(df: pd.DataFrame) -> pd.DataFrame:
     )
     df_comma["sub_type"] = (
         df_comma["stripped_type"]
+        .copy(deep=True)
         .str.split(" ")
         .apply(lambda x: x[0])
         .str.extract("^(\w+)")
+        .fillna("")
     )
-    ix_keep = df_comma["sub_type"].notnull()
-    df_comma = df_comma[ix_keep]
     df_comma = df_comma.explode(column="base_types")
     df_comma["type"] = df_comma["base_types"] + " " + df_comma["sub_type"]
 
@@ -205,6 +205,7 @@ def expand_type_column(df: pd.DataFrame) -> pd.DataFrame:
 
     df_clean = pd.concat([df_rest, df_slash, df_comma], axis=0)
     df_clean = df_clean.loc[:, df.columns]
+    df["type"] = df["type"].astype("string")
     return df_clean
 
 
@@ -284,7 +285,7 @@ def clean_lis(df: pd.DataFrame) -> pd.DataFrame:
 
 def clean_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
     logging.info("Cleaning TecDoc data such that it becomes compatible with LIS data...")
-    df["category"] = clean_body_type_column_tecdoc(df["category"])
+    df["category"] = clean_category_column_tecdoc(df["category"])
     df[c.STR_COLS] = (
         df[c.STR_COLS]
         .astype("string")

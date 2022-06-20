@@ -27,7 +27,7 @@ MATCHING_COLUMN_MAPPING = {
     "Manufacturer": "make",
     "Model Series": "model",
     "Type": "type",  # granularity TecDoc < LIS
-    "Body Type": "category",  # granularity TecDoc > LIS
+    "LnkTargetType": "category",  # granularity TecDoc > LIS
     "Model Year from": "model_year_start",  # granularity TecDoc > granularity LIS (month vs year)
     "Model Year to": "model_year_end",  # granularity TecDoc > granularity LIS (month vs year)
     "Engine Codes": "component_code",
@@ -44,17 +44,11 @@ TECDOC_COLUMNS += ["N-Type No."]
 # Cleaning
 STR_COLS = ['make', 'model', 'type', 'category', 'component_code', 'axle_configuration']
 
-BODY_TYPE_CATEGORY_MAPPING = {
-    'Platform/Chassis': "Trucks and Buses (> 7.5t)",
-    'Truck Tractor': "Agricultural Equipment",
-    'Dump Truck': "Trucks and Buses (> 7.5t)",
-    'Bus': "Trucks and Buses (> 7.5t)",
-    'Tractor': "Agricultural Equipment",
-    'Municipal Vehicle': "Trucks and Buses (> 7.5t)",  # TODO
-    'Concrete Mixer': "Agricultural Equipment",  # TODO
-    'Bus Chassis': "Trucks and Buses (> 7.5t)",
-    'Estate Van': "Trucks and Buses (> 7.5t)",
-    'Cab with engine': "Trucks and Buses (> 7.5t)",  # TODO
+CATEGORY_MAPPING = {
+    'TecDoc Bus': "Trucks and Buses (> 7.5t)",
+    'TecDoc CV': "Trucks and Buses (> 7.5t)",
+    'TecDoc E-Bus': "Trucks and Buses (> 7.5t)",
+    'TecDoc Tractor': "Agricultural Equipment",
 }
 
 UNIQUE_AXLE_CONFIGS = [
