@@ -29,7 +29,7 @@ If you have installed the package on your host system directly, you can run: `ol
 directly on the command line. The `olyslager match` command takes three optional arguments:
 - `--lis-path`: path to LIS excel file
 - `--tecdoc-path`: path to TecDoc excel file
-- `--output-folder`: where to store the output files
+- `--output-folder`: where to store the output files (this folder must already exist)
 
 For instance, you could enter:
 `olyslager match --lis-path="/path/to/my_folder/lis.xlsx"`
