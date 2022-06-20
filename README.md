@@ -3,7 +3,7 @@
 For Design Doc, see [here](https://teams.microsoft.com/_?culture=en-us&country=WW&lm=deeplink&lmsrc=homePageWeb&cmpid=WebSignIn#/docx/viewer/teamsSdk/https:~2F~2Folyslager.sharepoint.com~2Fsites~2FOlyslagerenLennartDamenvanBDR~2FGedeelde%20documenten~2FGeneral~2FDesign%20doc.docx?threadId=19:Bx4MdOlFK4pmpv661ltxZSCYt8J_siLZVkeTX1WRhFA1@thread.tacv2&fileId=e540b140-2d44-4282-b099-b49d09e51feb&ctx=openFilePreview&viewerAction=view).
 
 ## Installation
-To run this project, you need [Docker Desktop](https://www.docker.com/get-started/). After installation, start Docker
+The easiest way to run this project is to use [Docker Desktop](https://www.docker.com/get-started/). After installation, start Docker
 and run the following command in the working directory of this project:
 
 ```docker-compose build```
@@ -21,7 +21,7 @@ the package in "editable" mode: `pip install -e .["dev"]`
 ## Usage
 First, make sure to add two files to the `./data/raw` folder:
 - `lis.xlsx`, the LIS records
-- `tecdoc.xlsc`, the TecDoc records.
+- `tecdoc.xlsx`, the TecDoc records.
 
 To start the matching process using a docker container, run: `docker-compose up`.
 
