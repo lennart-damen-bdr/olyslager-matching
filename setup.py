@@ -7,9 +7,9 @@ from setuptools import find_packages, setup
 with open("README.md") as readme_file:
     readme = readme_file.read()
 
-requirements = ["numpy", "pandas", "xlrd", "openpyxl", "matplotlib"]
+requirements = ["numpy", "pandas", "xlrd", "openpyxl", "click"]
 test_requirements = ["pytest>=6.2.5"]
-development_requirements = ["pre-commit"]
+development_requirements = ["pre-commit", "matplotlib"]
 
 setup(
     author="Lennart Damen",
@@ -29,6 +29,7 @@ setup(
         "dev": test_requirements + development_requirements,
         "test": test_requirements,
     },
+    entry_points={"console_scripts": ["olyslager=oly_matching.cli:cli"]},
     license="MIT license",
     long_description=readme,
     include_package_data=True,

@@ -9,10 +9,12 @@ def match_mercedes(df_lis: pd.DataFrame, df_tecdoc: pd.DataFrame) -> pd.DataFram
 
     Assumes df_lis and df_tecdoc are already clean!
     """
+    logging.info("Starting matching process...")
     df_lis_matched = match_mercedes_on_required_columns(df_lis, df_tecdoc)
     df_lis_matched = keep_records_start_year_close(df_lis_matched)
     df_lis_matched = keep_records_with_matching_axle_config(df_lis_matched)
     df_lis_matched["in_tecdoc"] = df_lis_matched["in_tecdoc"].replace(to_replace=[None], value=False)
+    logging.info("Matching completed successfully.")
     return df_lis_matched
 
 

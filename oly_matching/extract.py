@@ -60,6 +60,7 @@ def extract_vehicle_type_lis(model_series: pd.Series) -> pd.Series:
 
 
 def extract_and_append_relevant_data_lis(df: pd.DataFrame) -> pd.DataFrame:
+    logging.info("Extracting and appending data to LIS...")
     df = df.copy(deep=True)
     # Extract LIS information from columns that is needed for the merge, but don't modify the columns yet
     df = append_axle_configs_lis(df)
@@ -69,4 +70,5 @@ def extract_and_append_relevant_data_lis(df: pd.DataFrame) -> pd.DataFrame:
         df[f"euro_{col}_lis"] = extract_euro_code(df[col])
     df["country_lis"] = extract_country_from_make_lis(df["make"])
     df["vehicly_type_lis"] = extract_vehicle_type_lis(df["model"])
+    logging.info("Extraction of LIS data completed successfully.")
     return df

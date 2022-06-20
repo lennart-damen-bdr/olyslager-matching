@@ -9,6 +9,7 @@ ROMAN_NUMERALS = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5}
 
 
 def keep_engine_records_lis(df: pd.DataFrame) -> pd.DataFrame:
+    logging.info("Dropping all LIS records that are not related to the engine...")
     df = df.copy(deep=True)
     ix_keep = df["component_group"] == "Engines"
     logging.info(f"Lis after dropping {len(df) - ix_keep.sum()} rows that are not 'Engines': {df.shape}")
@@ -28,7 +29,7 @@ def filter_records(df: pd.DataFrame) -> pd.DataFrame:
 def clean_whitespace(series: pd.Series) -> pd.Series:
     return (
         series
-        .str.replace("\s+", " ")
+        .str.replace("\s+", " ", regex=True)
         .str.lstrip()
         .str.rstrip()
     )
@@ -77,11 +78,11 @@ def clean_make_column(make_series: pd.Series) -> pd.Series:
 
 
 def remove_substrings_with_accolades(series: pd.Series) -> pd.Series:
-    return series.str.replace("\((.*?)\)", "")
+    return series.str.replace("\((.*?)\)", "", regex=True)
 
 
 def remove_euro_code(series: pd.Series) -> pd.Series:
-    clean_series = series.str.replace("\s[Ee]uro\s\d", "")
+    clean_series = series.str.replace("\s[Ee]uro\s\d", "", regex=True)
     clean_series = clean_whitespace(clean_series)
     return clean_series
 
@@ -99,7 +100,7 @@ def clean_model_column_lis(model_series: pd.Series) -> pd.Series:
 
 
 def remove_vehicle_type_lis(model_series: pd.Series) -> pd.Series:
-    clean_series = model_series.str.replace("|".join(c.VEHICLE_TYPES_LIS), "")
+    clean_series = model_series.str.replace("|".join(c.VEHICLE_TYPES_LIS), "", regex=True)
     clean_series = clean_whitespace(clean_series)
     return clean_series
 
@@ -108,13 +109,13 @@ def clean_model_column_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy(deep=True)
     df["model"] = (
         df["model"]
-        .str.replace("mp2\s\/\smp3", "")
-        .str.replace("mp4\s\/\smp5", "ii")
+        .str.replace("mp2\s\/\smp3", "", regex=True)
+        .str.replace("mp4\s\/\smp5", "ii", regex=True)
     )
     for letter, number in ROMAN_NUMERALS.items():
         actros_letter = f"actros {letter} "
         actros_number = f"actros {number} "
-        df["model"] = df["model"].str.replace(actros_number, actros_letter)
+        df["model"] = df["model"].str.replace(actros_number, actros_letter, regex=True)
     df = utils.explode_column(df, col="model", delimiter="/")  # for mercedes, possibly for other makes
 
     is_man_record = df["make"] == "man"
@@ -137,13 +138,13 @@ def clean_type_column_lis(df: pd.DataFrame) -> pd.DataFrame:
     type_series = remove_euro_code(type_series)
     type_series = remove_substrings_with_accolades(type_series)
     type_series = remove_axle_config_from_string(type_series)
-    df["type"] = type_series.str.replace("\.\./", "")
+    df["type"] = type_series.str.replace("\.\./", "", regex=True)
     df = expand_type_column(df)
 
     df["type"] = (
         df["type"]
         .apply(remove_special_characters)
-        .str.replace("\s+", "")
+        .str.replace("\s+", "", regex=True)
     )
     return df
 
@@ -187,7 +188,7 @@ def expand_type_column(df: pd.DataFrame) -> pd.DataFrame:
     )
     df_comma["stripped_type"] = (
         df_comma["type"].copy(deep=True)
-        .str.replace("^\d{4}(?:,\s\d{4})+\s", "")
+        .str.replace("^\d{4}(?:,\s\d{4})+\s", "", regex=True)
     )
     df_comma["sub_type"] = (
         df_comma["stripped_type"]
@@ -216,13 +217,13 @@ def clean_type_column_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
     df["type"] = (
         df["type"]
         .apply(remove_special_characters)
-        .str.replace("\s+", "")
+        .str.replace("\s+", "", regex=True)
     )
     return df
 
 
 def remove_axle_config_from_string(series: pd.Series) -> pd.Series:
-    return series.str.replace("|".join(c.UNIQUE_AXLE_CONFIGS), "")
+    return series.str.replace("|".join(c.UNIQUE_AXLE_CONFIGS), "", regex=True)
 
 
 def get_type_without_model_column_lis(df: pd.DataFrame) -> pd.Series:
@@ -259,10 +260,11 @@ def remove_roman_numeral_from_end(series: pd.Series) -> pd.Series:
     """See title. Only works for """
     roman_regex_group = "|".join(ROMAN_NUMERALS.keys())
     pattern = f"\s[{roman_regex_group}]+$"
-    return series.str.replace(pattern, "")
+    return series.str.replace(pattern, "", regex=True)
 
 
 def clean_lis(df: pd.DataFrame) -> pd.DataFrame:
+    logging.info("Cleaning LIS data such that it becomes compatible with TecDoc data...")
     df = df.copy(deep=True)
     df["category"] = clean_category_column_lis(df["category"])
     df[c.STR_COLS] = (
@@ -276,10 +278,12 @@ def clean_lis(df: pd.DataFrame) -> pd.DataFrame:
     df["model"] = clean_model_column_lis(df["model"])
     df = clean_type_column_lis(df)
     df = clean_engine_code(df)
+    logging.info("LIS data cleaned successfully.")
     return df
 
 
 def clean_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
+    logging.info("Cleaning TecDoc data such that it becomes compatible with LIS data...")
     df["category"] = clean_body_type_column_tecdoc(df["category"])
     df[c.STR_COLS] = (
         df[c.STR_COLS]
@@ -292,4 +296,5 @@ def clean_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
     df = clean_model_column_tecdoc(df)
     df = clean_type_column_tecdoc(df)
     df = clean_engine_code(df)
+    logging.info("TecDoc data cleaned successfully.")
     return df

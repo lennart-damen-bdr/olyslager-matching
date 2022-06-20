@@ -8,16 +8,12 @@ from oly_matching import clean, extract, match, analyze, pretty_logging
 pretty_logging.configure_logger(logging.INFO)
 
 
-def main(
-    lis_path: str = "/Users/lennartdamen/Documents/code/olyslager/data/raw/lis.xlsx",
-    tecdoc_path: str = "/Users/lennartdamen/Documents/code/olyslager/data/raw/tecdoc.xlsx",
-    output_folder: str = "/Users/lennartdamen/Documents/code/olyslager/data/output",
-) -> None:
+def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
     """Main script. Loads, cleans, matches, and analyzes lis and tecdoc data
 
     Creates 3 files:
     - lis_records_with_match.csv: for each LIS type ID, state which N-types correspond to it
-    - unmatched_lis_ds.csv: list of LIS ID's for which the algorithm could not find a match at all
+    - unmatched_lis_ids.csv: list of LIS ID's for which the algorithm could not find a match at all
     - lis_records_with_match.csv: detailed records from LIS, left-joined with corresponding TecDoc records
 
     Args:
@@ -31,11 +27,11 @@ def main(
         parse_dates=[7, 8]
     )
     logging.info("Loading TecDoc complete.")
+    logging.info(f"Tecdoc: {df_tecdoc.shape}")
+
     logging.info("Loading LIS records...")
     df_lis = pd.read_excel(lis_path)
     logging.info("Loading LIS complete.")
-
-    logging.info(f"Tecdoc: {df_tecdoc.shape}")
     logging.info(f"Lis: {df_lis.shape}")
 
     # We keep only the LIS rows related to the engine
@@ -67,11 +63,15 @@ def main(
 
     # Matching
     # If essential columns are missing, delete the record
+    logging.info("Dropping rows from TecDoc that are missing critical matching data...")
     ix_keep = df_tecdoc[c.REQUIRED_MATCHING_COLS].notnull().all(axis=1)
+    logging.info(f"Dropping {ix_keep.sum()}/{len(df_tecdoc)} rows")
     df_tecdoc = df_tecdoc[ix_keep]
     df_tecdoc["in_tecdoc"] = True
 
+    logging.info("Dropping rows from LIS that are missing critical matching data...")
     ix_keep = df_lis[c.REQUIRED_MATCHING_COLS].notnull().all(axis=1)
+    logging.info(f"Dropping {ix_keep.sum()}/{len(df_lis)} rows")
     df_lis = df_lis[ix_keep]
 
     df_lis = df_lis.reset_index(drop=True)
@@ -83,24 +83,30 @@ def main(
     df_lis_mercedes = df_lis[is_mercedes_record]
     # df_rest = df_lis[~is_mercedes_record]
 
+    # Saving output
     df_lis_matched = match.match_mercedes(df_lis_mercedes, df_tecdoc)
-    df_lis_matched.to_csv(f"{output_folder}/lis_records_with_match.csv", index=False)
+    output_path = f"{output_folder}/lis_records_with_match.csv"
+    df_lis_matched.to_csv(output_path, index=False)
+    logging.info(f"Saved full LIS records with appended N-type to {output_path}.")
 
     lis_id_with_n_types = analyze.get_lis_id_with_n_types(df_lis_matched)
-    lis_id_with_n_types.to_csv(f"{output_folder}/lis_ids_with_n_types.csv")
+    output_path = f"{output_folder}/lis_ids_with_n_types.csv"
+    lis_id_with_n_types.to_csv(output_path)
+    logging.info(f"Saved list of LIS ID's with N-type to {output_path}.")
 
     unique_lis_types = df_lis_original["type_id"].unique()
     unmatched_lis_ids = [x for x in unique_lis_types if x not in lis_id_with_n_types.index]
-    pd.Series(unmatched_lis_ids).to_csv(f"{output_folder}/unmatched_lis_ids.csv", index=False)
+    output_path = f"{output_folder}/unmatched_lis_ids.csv"
+    pd.Series(unmatched_lis_ids).to_csv(output_path, index=False)
+    logging.info(f"Saved list of LIS ID's that did not get an N-type to {output_path}.")
 
     logging.info(
         f"Perentage matched = {len(lis_id_with_n_types)}/{len(unique_lis_types)} = "
         f"{len(lis_id_with_n_types)/len(unique_lis_types) * 100}%"
     )
 
+    logging.info("Full matching process completed successfully.")
 
-if __name__ == "__main__":
-    main()
 
 # What % of matches can we expect if the engine code is NOT missing?
 # engine_codes = clean.extract_mercedes_engine_code(df_lis_original["component_code"])
