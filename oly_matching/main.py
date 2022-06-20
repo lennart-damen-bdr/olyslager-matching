@@ -26,13 +26,11 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
         io=tecdoc_path,
         parse_dates=[7, 8]
     )
-    logging.info("Loading TecDoc complete.")
-    logging.info(f"Tecdoc: {df_tecdoc.shape}")
+    logging.info(f"Loading TecDoc complete. Shape :{df_tecdoc.shape}")
 
     logging.info("Loading LIS records...")
     df_lis = pd.read_excel(lis_path)
-    logging.info("Loading LIS complete.")
-    logging.info(f"Lis: {df_lis.shape}")
+    logging.info(f"Loading LIS complete. Shape: {df_lis.shape}")
 
     # We keep only the LIS rows related to the engine
     df_lis = clean.keep_engine_records_lis(df_lis)

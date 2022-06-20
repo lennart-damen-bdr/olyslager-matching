@@ -159,54 +159,64 @@ def expand_type_column(df: pd.DataFrame) -> pd.DataFrame:
 
     # Deal with slash separated types
     is_slash_separated = (
-        (np.isin(df["model"], ["atego", "actros", "axor"]))
-        & (df["type"].str.contains("\w+\s?/"))
+        (df["type"].str.contains("\w+\s?/"))
+        # & (np.isin(df["model"], ["atego", "actros", "axor"]))  # TODO: improves mercedes but kills general
     )
     df_slash = df[is_slash_separated].copy(True)
-    split_type = df_slash["type"].str.split("\s+").copy(True)
-    df_slash["base_type"] = split_type.apply(lambda x: x[0])
-    df_slash["subtypes"] = (
-        split_type
-        .apply(lambda x: x[1])
-        .str.split("\s?/\s?")
-    )
-    df_slash = df_slash.explode(column="subtypes")
-    df_slash["type"] = df_slash["base_type"] + " " + df_slash["subtypes"]
+    df_slash = expand_slash_separated_types(df_slash)
 
     # Deal with comma separated types
     df_rest = df[~is_slash_separated]
     is_comma_separated = (
-        (np.isin(df_rest["model"], ["actros ii", "arocs", "antos"]))
-        & (df_rest["type"].str.match("^\d+,\s"))
+        (df_rest["type"].str.match("^\d+,\s"))
+        # & (np.isin(df_rest["model"], ["actros ii", "arocs", "antos"]))  # TODO: improves mercedes but kills general
     )
     df_comma = df_rest[is_comma_separated]
-    df_comma["base_types"] = (
-        df_comma["type"].copy(deep=True)
+    df_comma = expand_comma_separated_types(df_comma)
+
+    # Merge results
+    df_rest = df_rest[~is_comma_separated]
+    df_clean = pd.concat([df_rest, df_slash, df_comma], axis=0)
+    df_clean = df_clean.loc[:, df.columns]
+    return df_clean
+
+
+def expand_slash_separated_types(df: pd.DataFrame) -> pd.DataFrame:
+    split_type = df["type"].str.split("\s+").copy(True)
+    df["base_type"] = split_type.apply(lambda x: x[0])
+    df["subtypes"] = (
+        split_type
+        .apply(lambda x: x[1])
+        .str.split("\s?/\s?")
+    )
+    df = df.explode(column="subtypes")
+    df["type"] = df["base_type"] + " " + df["subtypes"]
+    return df
+
+
+def expand_comma_separated_types(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy(deep=True)
+    df["base_types"] = (
+        df["type"].copy(deep=True)
         .str.findall("^\d{4}(?:,\s\d{4})+")
         .apply(lambda x: x[0] if x else "")
         .str.split(", ")
     )
-    df_comma["stripped_type"] = (
-        df_comma["type"].copy(deep=True)
+    df["stripped_type"] = (
+        df["type"].copy(deep=True)
         .str.replace("^\d{4}(?:,\s\d{4})+\s", "", regex=True)
     )
-    df_comma["sub_type"] = (
-        df_comma["stripped_type"]
+    df["sub_type"] = (
+        df["stripped_type"]
         .copy(deep=True)
         .str.split(" ")
         .apply(lambda x: x[0])
         .str.extract("^(\w+)")
         .fillna("")
     )
-    df_comma = df_comma.explode(column="base_types")
-    df_comma["type"] = df_comma["base_types"] + " " + df_comma["sub_type"]
-
-    df_rest = df_rest[~is_comma_separated]
-
-    df_clean = pd.concat([df_rest, df_slash, df_comma], axis=0)
-    df_clean = df_clean.loc[:, df.columns]
-    df["type"] = df["type"].astype("string")
-    return df_clean
+    df = df.explode(column="base_types")
+    df["type"] = df["base_types"] + " " + df["sub_type"]
+    return df
 
 
 def clean_type_column_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
