@@ -72,3 +72,15 @@ def extract_and_append_relevant_data_lis(df: pd.DataFrame) -> pd.DataFrame:
     df["vehicly_type_lis"] = extract_vehicle_type_lis(df["model"])
     logging.info("Extraction of LIS data completed successfully.")
     return df
+
+
+def extract_mercedes_engine_code(series: pd.Series) -> pd.Series:
+    df_engine_codes = series.str.extract("([\d|x|X]{3}\.[\d|x|X]{3})")
+    engine_series = df_engine_codes.iloc[:, 0].astype("string")
+    return engine_series
+
+
+def extract_man_engine_code(series: pd.Series) -> pd.Series:
+    df_engine_codes = series.str.extract("(d\s?\d{4}\s?[a-z]+\s?\d+)")
+    engine_series = df_engine_codes.iloc[:, 0].astype("string")
+    return engine_series

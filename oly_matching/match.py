@@ -1,10 +1,10 @@
 import logging
 import pandas as pd
 
-MERCEDES_MATCHING_COLS = ["make", "model", "type", "category", "component_code_clean"]
+MATCHING_MERGE_COLS = ["make", "model", "type", "category", "component_code_clean"]
 
 
-def match_mercedes(df_lis: pd.DataFrame, df_tecdoc: pd.DataFrame) -> pd.DataFrame:
+def match_tecdoc_records_to_lis(df_lis: pd.DataFrame, df_tecdoc: pd.DataFrame) -> pd.DataFrame:
     """Tries to match every record from lis against a record from tecdoc (left join)
 
     Assumes df_lis and df_tecdoc are already clean!
@@ -35,7 +35,7 @@ def match_on_required_columns(df_lis: pd.DataFrame, df_tecdoc: pd.DataFrame) -> 
             left=df_lis_i,
             right=df_tecdoc,
             how="left",
-            on=MERCEDES_MATCHING_COLS,
+            on=MATCHING_MERGE_COLS,
             suffixes=("_lis", "_tecdoc")
         )
         df_matched_list.append(df_lis_matched)

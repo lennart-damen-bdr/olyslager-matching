@@ -39,9 +39,6 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
     df_lis = df_lis[c.LIS_COLUMNS]
     df_tecdoc = df_tecdoc[c.TECDOC_COLUMNS]
 
-    # Convert all time related columns to "year" as float
-    df_tecdoc = clean.convert_time_cols_tecdoc(df=df_tecdoc)
-
     # Rename all tecdoc columns to correspond to LIS columns
     df_tecdoc = df_tecdoc.rename(columns=c.MATCHING_COLUMN_MAPPING)
 
@@ -76,14 +73,10 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
     df_lis = df_lis.reset_index(drop=True)
     df_tecdoc = df_tecdoc.reset_index(drop=True)
 
-    # TODO: current matching designed specifically to deal with mercedes-benz
-    #  because of wildcard in engine code. Deal with other makes in future too.
-    # is_mercedes_record = df_lis["make"] == "mercedesbenz"
-    # df_lis_mercedes = df_lis[is_mercedes_record]
-    # df_rest = df_lis[~is_mercedes_record]
+    # Matching
+    df_lis_matched = match.match_tecdoc_records_to_lis(df_lis, df_tecdoc)
 
     # Saving output
-    df_lis_matched = match.match_mercedes(df_lis, df_tecdoc)
     output_path = f"{output_folder}/lis_records_with_match.csv"
     df_lis_matched.to_csv(output_path, index=False)
     logging.info(f"Saved full LIS records with appended N-type to {output_path}.")
@@ -94,8 +87,17 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
     logging.info(f"Saved list of LIS ID's with N-type to {output_path}.")
 
     unique_lis_types = df_lis_original["type_id"].unique()
-    unmatched_lis_ids = pd.DataFrame(data=[x for x in unique_lis_types if x not in lis_id_with_n_types.index], columns=["type_id"])
+    percentage_matched = len(lis_id_with_n_types)/len(unique_lis_types) * 100
+    logging.info(
+        f"Percentage matched overall = {len(lis_id_with_n_types)}/{len(unique_lis_types)} = "
+        f"{percentage_matched}%"
+    )
+    percentage_matched_with_engine_code = analyze.percentage_matched_if_engine_code_present(
+        df_lis_original, df_lis_matched
+    )
 
+    # Save unmatched LIS ID's
+    unmatched_lis_ids = pd.DataFrame(data=[x for x in unique_lis_types if x not in lis_id_with_n_types.index], columns=["type_id"])
     has_at_least_one_engine_code = df_lis.groupby("type_id").apply(lambda x: x["component_code"].notnull().any())
     has_at_least_one_engine_code = pd.DataFrame(has_at_least_one_engine_code, columns=["has_at_least_one_engine_code"])
     has_at_least_one_engine_code = has_at_least_one_engine_code.reset_index()
@@ -111,14 +113,6 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
     unmatched_lis_ids.to_csv(output_path, index=False)
     logging.info(f"Saved list of LIS ID's that did not get an N-type to {output_path}.")
 
-    percentage_matched = len(lis_id_with_n_types)/len(unique_lis_types) * 100
-    logging.info(
-        f"Percentage matched overall = {len(lis_id_with_n_types)}/{len(unique_lis_types)} = "
-        f"{percentage_matched}%"
-    )
-    percentage_matched_with_engine_code = analyze.percentage_matched_if_engine_code_present(
-        df_lis_original, df_lis_matched
-    )
     logging.info("Full matching process completed successfully.")
 
 # Mercedes-Benz

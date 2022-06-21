@@ -2,7 +2,7 @@ import re
 import logging
 import pandas as pd
 from oly_matching import constants as c
-from oly_matching import utils
+from oly_matching import utils, extract
 
 ROMAN_NUMERALS = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5}
 
@@ -17,7 +17,6 @@ def keep_engine_records_lis(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # TODO: change this function according to which records you want to match
-#  currently, we only keep records for mercedes-benz
 def filter_records(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy(deep=True)
     # ix_keep = df["make"].str.lower().str.contains("mercedes")
@@ -52,7 +51,7 @@ def clean_category_column_tecdoc(series: pd.Series) -> pd.Series:
 
 def convert_time_cols_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy(deep=True)
-    for year_col in ("Model Year from", "Model Year to"):
+    for year_col in ("model_year_start", "model_year_end"):
         df[year_col] = df[year_col].dt.year
     return df
 
@@ -82,7 +81,7 @@ def remove_substrings_with_accolades(series: pd.Series) -> pd.Series:
 
 
 def remove_euro_code(series: pd.Series) -> pd.Series:
-    clean_series = series.str.replace("\s[Ee]uro\s\d", "", regex=True)
+    clean_series = series.str.replace("[Ee]uro\s?\d", "", regex=True)
     clean_series = clean_whitespace(clean_series)
     return clean_series
 
@@ -117,7 +116,7 @@ def clean_model_column_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
         actros_number = f"actros {number} "
         df["model"] = df["model"].str.replace(actros_number, actros_letter, regex=True)
     df = utils.explode_column(df, col="model", delimiter="/")  # for mercedes, possibly for other makes
-    df = _clean_model_column_tecdoc_man(df)
+    # df = _clean_model_column_tecdoc_man(df)
     df["model"] = clean_whitespace(df["model"])
     return df
 
@@ -173,7 +172,7 @@ def expand_type_column(df: pd.DataFrame) -> pd.DataFrame:
     # Deal with slash separated types
     df_rest = df[~is_comma_separated]
     is_slash_separated = (
-        (df_rest["type"].str.contains("\w+\s?/"))
+        (df_rest["type"].str.contains("(\w+\s?/)+"))
         # & (np.isin(df_rest["model"], ["atego", "actros", "axor"]))  # TODO: improves mercedes but kills general
     )
     df_slash = df_rest[is_slash_separated].copy(True)
@@ -187,16 +186,19 @@ def expand_type_column(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def expand_slash_separated_types(df: pd.DataFrame) -> pd.DataFrame:
-    split_type = df["type"].str.split("\s+").copy(True)
-    df["base_type"] = split_type.apply(lambda x: x[0])
-    df["subtypes"] = (
-        split_type
-        .apply(lambda x: x[1])
-        .str.split("\s?/\s?")
-    )
+    split_type_series = df["type"].str.split("\s+").copy(True)
+    df["base_type"] = split_type_series.apply(lambda x: x[0])
+    df["subtypes"] = split_type_series.apply(_get_subtype)
     df = df.explode(column="subtypes")
     df["type"] = df["base_type"] + " " + df["subtypes"]
     return df
+
+
+def _get_subtype(split_type: list) -> list:
+    if len(split_type) > 1:
+        return split_type[1].split("/")
+    else:
+        return [""]
 
 
 def expand_comma_separated_types(df: pd.DataFrame) -> pd.DataFrame:
@@ -256,7 +258,7 @@ def remove_axle_config_from_string(series: pd.Series) -> pd.Series:
     return series.str.replace("|".join(c.UNIQUE_AXLE_CONFIGS), "", regex=True)
 
 
-def get_type_without_model_column_lis(df: pd.DataFrame) -> pd.Series:
+def get_type_without_model_column_lis(df: pd.DataFrame) -> pd.DataFrame:
     """Removes the 'model' from the 'type' column
 
     Both model and type column should be cleaned: lower string, removed axle config, no euro code
@@ -270,34 +272,35 @@ def get_type_without_model_column_lis(df: pd.DataFrame) -> pd.Series:
 
 
 def clean_engine_code(df: pd.DataFrame) -> pd.DataFrame:
+    """Cleans the engine code. Assumes the make column has already been cleaned"""
     df = df.copy(deep=True)
+    df["component_code"] = remove_euro_code(df["component_code"])
     df = utils.explode_column(df, "component_code")
-
-    is_mercedes_record = df["make"] == "mercedes"
-    df_mercedes = df[is_mercedes_record]
-    df_mercedes["component_code"] = extract_mercedes_engine_code(df_mercedes["component_code"])
-
-    # TODO: deal with component codes separated by / for MAN
-    df_rest = df[~is_mercedes_record]
-    is_man_record = df_rest["make"] == "man"
-    df_man = df_rest[is_man_record]
-    df_rest = df_rest[~is_man_record]
-    df_man["component_code"] = df_man["component_code"].str.extract("(d\s?\d{4}\s?[a-z]+\s?\d+)")
-
-    df = pd.concat([df_mercedes, df_man, df_rest], axis=0)
+    df = _clean_mercedes_engine_code(df)
+    df = _clean_man_engine_code(df)
     df["component_code"] = df["component_code"].str.replace(" ", "")
-
     return df
 
 
-def extract_mercedes_engine_code(series: pd.Series) -> pd.Series:
-    df_engine_codes = series.str.extract("([\d|x|X]{3}\.[\d|x|X]{3})")
-    engine_series = df_engine_codes.iloc[:, 0].astype("string")
-    return engine_series
+def _clean_mercedes_engine_code(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy(deep=True)
+    is_mercedes_record = df["make"].str.contains("mercedes")
+    df_mercedes = df[is_mercedes_record]
+    df_rest = df[~is_mercedes_record]
+    df_mercedes["component_code"] = extract.extract_mercedes_engine_code(df_mercedes["component_code"])
+    df = pd.concat([df_mercedes, df_rest], axis=0)
+    return df
 
 
-def replace_none_like_string_with_none(series: pd.Series) -> pd.Series:
-    return series.replace(to_replace=["nan", "None", "none"], value=None)
+# TODO: deal with component codes separated by / for MAN
+def _clean_man_engine_code(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy(deep=True)
+    is_man_record = df["make"] == "man"
+    df_man = df[is_man_record]
+    df_rest = df[~is_man_record]
+    df_man["component_code"] = extract.extract_man_engine_code(df_man["component_code"])
+    df = pd.concat([df_man, df_rest], axis=0)
+    return df
 
 
 def remove_roman_numeral_from_end(series: pd.Series) -> pd.Series:
@@ -307,17 +310,26 @@ def remove_roman_numeral_from_end(series: pd.Series) -> pd.Series:
     return series.str.replace(pattern, "", regex=True)
 
 
+def clean_string_columns(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy(deep=True)
+    for col in c.STR_COLS:
+        try:
+            df[col] = (
+                df[col]
+                .astype("string")
+                .str.lower()
+            )
+            df[col] = clean_whitespace(df[col])
+        except KeyError:
+            logging.warning(f"Could not find {col} in dataframe, skipping that column")
+    return df
+
+
 def clean_lis(df: pd.DataFrame) -> pd.DataFrame:
     logging.info("Cleaning LIS data such that it becomes compatible with TecDoc data...")
     df = df.copy(deep=True)
     df["category"] = clean_category_column_lis(df["category"])
-    df[c.STR_COLS] = (
-        df[c.STR_COLS]
-        .astype("string")
-        .apply(lambda x: x.str.lower())
-    )
-    for col in c.STR_COLS:
-        df[col] = clean_whitespace(df[col])
+    df = clean_string_columns(df)
     df["make"] = clean_make_column(df["make"])
     df["model"] = clean_model_column_lis(df["model"])
     df = clean_type_column_lis(df)
@@ -328,14 +340,9 @@ def clean_lis(df: pd.DataFrame) -> pd.DataFrame:
 
 def clean_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
     logging.info("Cleaning TecDoc data such that it becomes compatible with LIS data...")
+    df = convert_time_cols_tecdoc(df=df)
     df["category"] = clean_category_column_tecdoc(df["category"])
-    df[c.STR_COLS] = (
-        df[c.STR_COLS]
-        .astype("string")
-        .apply(lambda x: x.str.lower())
-    )
-    for col in c.STR_COLS:
-        df[col] = clean_whitespace(df[col])
+    df = clean_string_columns(df)
     df["make"] = clean_make_column(df["make"])
     df = clean_model_column_tecdoc(df)
     df = clean_type_column_tecdoc(df)
