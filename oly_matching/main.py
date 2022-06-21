@@ -26,7 +26,7 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
         io=tecdoc_path,
         parse_dates=[7, 8]
     )
-    logging.info(f"Loading TecDoc complete. Shape :{df_tecdoc.shape}")
+    logging.info(f"Loading TecDoc complete. Shape: {df_tecdoc.shape}")
 
     logging.info("Loading LIS records...")
     df_lis = pd.read_excel(lis_path)
@@ -64,13 +64,13 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
     # If essential columns are missing, delete the record
     logging.info("Dropping rows from TecDoc that are missing critical matching data...")
     ix_keep = df_tecdoc[c.REQUIRED_MATCHING_COLS].notnull().all(axis=1)
-    logging.info(f"Dropping {ix_keep.sum()}/{len(df_tecdoc)} rows")
+    logging.info(f"Keeping {ix_keep.sum()}/{len(df_tecdoc)} rows")
     df_tecdoc = df_tecdoc[ix_keep]
     df_tecdoc["in_tecdoc"] = True
 
     logging.info("Dropping rows from LIS that are missing critical matching data...")
     ix_keep = df_lis[c.REQUIRED_MATCHING_COLS].notnull().all(axis=1)
-    logging.info(f"Dropping {ix_keep.sum()}/{len(df_lis)} rows")
+    logging.info(f"Keeping {ix_keep.sum()}/{len(df_lis)} rows")
     df_lis = df_lis[ix_keep]
 
     df_lis = df_lis.reset_index(drop=True)
@@ -78,12 +78,12 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
 
     # TODO: current matching designed specifically to deal with mercedes-benz
     #  because of wildcard in engine code. Deal with other makes in future too.
-    is_mercedes_record = df_lis["make"] == "mercedesbenz"
-    df_lis_mercedes = df_lis[is_mercedes_record]
+    # is_mercedes_record = df_lis["make"] == "mercedesbenz"
+    # df_lis_mercedes = df_lis[is_mercedes_record]
     # df_rest = df_lis[~is_mercedes_record]
 
     # Saving output
-    df_lis_matched = match.match_mercedes(df_lis_mercedes, df_tecdoc)
+    df_lis_matched = match.match_mercedes(df_lis, df_tecdoc)
     output_path = f"{output_folder}/lis_records_with_match.csv"
     df_lis_matched.to_csv(output_path, index=False)
     logging.info(f"Saved full LIS records with appended N-type to {output_path}.")
@@ -113,7 +113,7 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
 
     percentage_matched = len(lis_id_with_n_types)/len(unique_lis_types) * 100
     logging.info(
-        f"Perentage matched overall = {len(lis_id_with_n_types)}/{len(unique_lis_types)} = "
+        f"Percentage matched overall = {len(lis_id_with_n_types)}/{len(unique_lis_types)} = "
         f"{percentage_matched}%"
     )
     percentage_matched_with_engine_code = analyze.percentage_matched_if_engine_code_present(

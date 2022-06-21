@@ -1,6 +1,5 @@
 import re
 import logging
-import numpy as np
 import pandas as pd
 from oly_matching import constants as c
 from oly_matching import utils
@@ -21,7 +20,8 @@ def keep_engine_records_lis(df: pd.DataFrame) -> pd.DataFrame:
 #  currently, we only keep records for mercedes-benz
 def filter_records(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy(deep=True)
-    ix_keep = df["make"].str.lower().str.contains("mercedes")
+    # ix_keep = df["make"].str.lower().str.contains("mercedes")
+    ix_keep = df["make"] == "MAN"
     df = df.loc[ix_keep, :]
     return df
 
@@ -117,7 +117,12 @@ def clean_model_column_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
         actros_number = f"actros {number} "
         df["model"] = df["model"].str.replace(actros_number, actros_letter, regex=True)
     df = utils.explode_column(df, col="model", delimiter="/")  # for mercedes, possibly for other makes
+    df = _clean_model_column_tecdoc_man(df)
+    df["model"] = clean_whitespace(df["model"])
+    return df
 
+
+def _clean_model_column_tecdoc_man(df: pd.DataFrame) -> pd.DataFrame:
     is_man_record = df["make"] == "man"
     if is_man_record.sum() > 0:
         df_man = df[is_man_record]
@@ -126,7 +131,6 @@ def clean_model_column_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
         is_m2000_row = df_man["model"].str.startswith("m 2000")
         df_man.loc[is_m2000_row, "model"] = "m2000"
         df = pd.concat([df_rest, df_man])
-    df["model"] = clean_whitespace(df["model"])
     return df
 
 
@@ -138,6 +142,7 @@ def clean_type_column_lis(df: pd.DataFrame) -> pd.DataFrame:
     type_series = remove_euro_code(type_series)
     type_series = remove_substrings_with_accolades(type_series)
     type_series = remove_axle_config_from_string(type_series)
+    type_series = clean_whitespace(type_series)
     df["type"] = type_series.str.replace("\.\./", "", regex=True)
     df = expand_type_column(df)
 
@@ -157,26 +162,26 @@ def expand_type_column(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = df.copy()
 
-    # Deal with slash separated types
-    is_slash_separated = (
-        (df["type"].str.contains("\w+\s?/"))
-        # & (np.isin(df["model"], ["atego", "actros", "axor"]))  # TODO: improves mercedes but kills general
-    )
-    df_slash = df[is_slash_separated].copy(True)
-    df_slash = expand_slash_separated_types(df_slash)
-
     # Deal with comma separated types
-    df_rest = df[~is_slash_separated]
     is_comma_separated = (
-        (df_rest["type"].str.match("^\d+,\s"))
+        (df["type"].str.match("^\d+,\s"))
         # & (np.isin(df_rest["model"], ["actros ii", "arocs", "antos"]))  # TODO: improves mercedes but kills general
     )
-    df_comma = df_rest[is_comma_separated]
+    df_comma = df[is_comma_separated]
     df_comma = expand_comma_separated_types(df_comma)
 
+    # Deal with slash separated types
+    df_rest = df[~is_comma_separated]
+    is_slash_separated = (
+        (df_rest["type"].str.contains("\w+\s?/"))
+        # & (np.isin(df_rest["model"], ["atego", "actros", "axor"]))  # TODO: improves mercedes but kills general
+    )
+    df_slash = df_rest[is_slash_separated].copy(True)
+    df_slash = expand_slash_separated_types(df_slash)
+
     # Merge results
-    df_rest = df_rest[~is_comma_separated]
-    df_clean = pd.concat([df_rest, df_slash, df_comma], axis=0)
+    df_rest = df_rest[~is_slash_separated]
+    df_clean = pd.concat([df_rest, df_comma, df_slash], axis=0)
     df_clean = df_clean.loc[:, df.columns]
     return df_clean
 
@@ -224,7 +229,21 @@ def clean_type_column_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
     # TODO: how to deal with MAN
     is_man_record = df["make"] == "man"
     df_man = df[is_man_record]
-    df = utils.explode_column(df, "type")
+
+    # split_type = df_man["type"].str.split(" ").copy(deep=True)
+    # first_type_element = split_type.apply(lambda x: x[0])
+    # has_base_with_subtype_format = (
+    #     first_type_element.str.contains("^\d+")
+    #     & first_type_element.str.contains("\.")
+    # )
+    # df_man_format = df_man[has_base_with_subtype_format]
+    # df_man_format["base_type"] = (
+    #     first_type_element[has_base_with_subtype_format]
+    #     .str.replace(",", "")
+    # )
+    # df_man_rest = df_man[~has_base_with_subtype_format]
+
+    df = utils.explode_column(df, "type")  # used for mercedes
     df["type"] = (
         df["type"]
         .apply(remove_special_characters)
@@ -253,7 +272,21 @@ def get_type_without_model_column_lis(df: pd.DataFrame) -> pd.Series:
 def clean_engine_code(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy(deep=True)
     df = utils.explode_column(df, "component_code")
-    df["component_code"] = extract_mercedes_engine_code(df["component_code"])
+
+    is_mercedes_record = df["make"] == "mercedes"
+    df_mercedes = df[is_mercedes_record]
+    df_mercedes["component_code"] = extract_mercedes_engine_code(df_mercedes["component_code"])
+
+    # TODO: deal with component codes separated by / for MAN
+    df_rest = df[~is_mercedes_record]
+    is_man_record = df_rest["make"] == "man"
+    df_man = df_rest[is_man_record]
+    df_rest = df_rest[~is_man_record]
+    df_man["component_code"] = df_man["component_code"].str.extract("(d\s?\d{4}\s?[a-z]+\s?\d+)")
+
+    df = pd.concat([df_mercedes, df_man, df_rest], axis=0)
+    df["component_code"] = df["component_code"].str.replace(" ", "")
+
     return df
 
 
