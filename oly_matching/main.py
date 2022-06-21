@@ -22,14 +22,16 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
         output_folder: where to store the output files
     """
     logging.info("Loading TecDoc records...")
-    df_tecdoc = pd.read_excel(
-        io=tecdoc_path,
-        parse_dates=[7, 8]
-    )
+    # df_tecdoc = pd.read_excel(
+    #     io=tecdoc_path,
+    #     parse_dates=[7, 8]
+    # )
+    df_tecdoc = pd.read_pickle("/Users/lennartdamen/Documents/code/olyslager/data/raw/tecdoc.pkl")
     logging.info(f"Loading TecDoc complete. Shape: {df_tecdoc.shape}")
 
     logging.info("Loading LIS records...")
-    df_lis = pd.read_excel(lis_path)
+    # df_lis = pd.read_excel(lis_path)
+    df_lis = pd.read_pickle("/Users/lennartdamen/Documents/code/olyslager/data/raw/lis.pkl")
     logging.info(f"Loading LIS complete. Shape: {df_lis.shape}")
 
     # We keep only the LIS rows related to the engine
@@ -77,41 +79,57 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
     df_lis_matched = match.match_tecdoc_records_to_lis(df_lis, df_tecdoc)
 
     # Saving output
+    # All details about the matches
     output_path = f"{output_folder}/lis_records_with_match.csv"
     df_lis_matched.to_csv(output_path, index=False)
     logging.info(f"Saved full LIS records with appended N-type to {output_path}.")
 
-    lis_id_with_n_types = analyze.get_lis_id_with_n_types(df_lis_matched)
-    output_path = f"{output_folder}/lis_ids_with_n_types.csv"
-    lis_id_with_n_types.to_csv(output_path)
+    # Results per LIS ID
+    df_lis_original = clean.clean_string_columns(df_lis_original)
+    df_lis_original = clean.clean_engine_code(df_lis_original)
+    lis_id_has_engine_code = analyze.get_lis_id_has_engine_code(
+        df=df_lis_original,
+        id_col="type_id",
+        engine_col="component_code"
+    )
+    df_results = pd.DataFrame(lis_id_has_engine_code)
+    df_results["n_types"] = analyze.get_lis_id_with_n_types(df_lis_matched)
+    df_results = df_results.reset_index()
+
+    output_path = f"{output_folder}/matches_per_lis_id.csv"
+    df_results.to_csv(output_path, index=False)
     logging.info(f"Saved list of LIS ID's with N-type to {output_path}.")
 
-    unique_lis_types = df_lis_original["type_id"].unique()
-    percentage_matched = len(lis_id_with_n_types)/len(unique_lis_types) * 100
+    # Metrics
+    n_matches = df_results["n_types"].notnull().sum()
+    percentage_matched = n_matches / len(df_results) * 100
     logging.info(
-        f"Percentage matched overall = {len(lis_id_with_n_types)}/{len(unique_lis_types)} = "
+        f"Percentage of LIS types that get at least one N-type = {n_matches}/{len(df_results)} = "
         f"{percentage_matched}%"
     )
-    percentage_matched_with_engine_code = analyze.percentage_matched_if_engine_code_present(
-        df_lis_original, df_lis_matched
+
+    df_results_with_engine_code = df_results[df_results["has_engine_code"]]
+    n_matches_with_engine_code = df_results_with_engine_code["n_types"].notnull().sum()
+    percentage_matched_with_engine_code = n_matches_with_engine_code / len(df_results_with_engine_code) * 100
+    logging.info(
+        "For all LIS types that have an engine code, "
+        f"{n_matches_with_engine_code}/{len(df_results_with_engine_code)} "
+        f"={percentage_matched_with_engine_code}% get one or more N-types"
     )
 
-    # Save unmatched LIS ID's
-    unmatched_lis_ids = pd.DataFrame(data=[x for x in unique_lis_types if x not in lis_id_with_n_types.index], columns=["type_id"])
-    has_at_least_one_engine_code = df_lis.groupby("type_id").apply(lambda x: x["component_code"].notnull().any())
-    has_at_least_one_engine_code = pd.DataFrame(has_at_least_one_engine_code, columns=["has_at_least_one_engine_code"])
-    has_at_least_one_engine_code = has_at_least_one_engine_code.reset_index()
-    unmatched_lis_ids = pd.merge(
-        left=unmatched_lis_ids,
-        right=has_at_least_one_engine_code,
-        on=["type_id"],
-        how="left",
+    metrics = pd.Series(
+        data={
+            "n_unique_lis_ids": len(df_results),
+            "n_lis_ids_with_one_or_more_n_types": int(n_matches),
+            "n_lis_ids_with_engine_code": len(df_results_with_engine_code),
+            "n_lis_ids_with_engine_code_with_one_or_more_n_types": int(n_matches_with_engine_code),
+            "percentage_matched": percentage_matched,
+            "percentage_matched_with_engine_code": percentage_matched_with_engine_code
+        },
+        name="metrics",
     )
-    unmatched_lis_ids["has_at_least_one_engine_code"] = unmatched_lis_ids["has_at_least_one_engine_code"].fillna(False)
-
-    output_path = f"{output_folder}/unmatched_lis_ids.csv"
-    unmatched_lis_ids.to_csv(output_path, index=False)
-    logging.info(f"Saved list of LIS ID's that did not get an N-type to {output_path}.")
+    output_path = f"{output_folder}/metrics.csv"
+    metrics.to_csv(output_path)
 
     logging.info("Full matching process completed successfully.")
 

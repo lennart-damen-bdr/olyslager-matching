@@ -94,7 +94,7 @@ def clean_model_column_lis(model_series: pd.Series) -> pd.Series:
     clean_series = remove_euro_code(model_series)
     clean_series = remove_vehicle_type_lis(clean_series)
     clean_series = clean_whitespace(clean_series)
-    clean_series = clean_series.replace("tgl/4", "tgl")
+    clean_series = clean_series.replace("tgl /4", "tgl")
     return clean_series
 
 
@@ -116,7 +116,7 @@ def clean_model_column_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
         actros_number = f"actros {number} "
         df["model"] = df["model"].str.replace(actros_number, actros_letter, regex=True)
     df = utils.explode_column(df, col="model", delimiter="/")  # for mercedes, possibly for other makes
-    # df = _clean_model_column_tecdoc_man(df)
+    df = _clean_model_column_tecdoc_man(df)
     df["model"] = clean_whitespace(df["model"])
     return df
 
@@ -164,7 +164,7 @@ def expand_type_column(df: pd.DataFrame) -> pd.DataFrame:
     # Deal with comma separated types
     is_comma_separated = (
         (df["type"].str.match("^\d+,\s"))
-        # & (np.isin(df_rest["model"], ["actros ii", "arocs", "antos"]))  # TODO: improves mercedes but kills general
+        # & (np.isin(df["model"], ["actros ii", "arocs", "antos"]))  # TODO: improves mercedes but kills general
     )
     df_comma = df[is_comma_separated]
     df_comma = expand_comma_separated_types(df_comma)
