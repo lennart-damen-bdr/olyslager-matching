@@ -41,6 +41,8 @@ def extract_country_from_make_lis(make_series: pd.Series) -> pd.Series:
 
 def extract_euro_code(series: pd.Series) -> pd.Series:
     euro_series = series.str.findall("[Ee]uro\s\d")
+    is_null = euro_series.isnull()
+    euro_series[is_null] = euro_series[is_null].apply(lambda x: [])
     euro_series = euro_series.apply(lambda x: None if not x else x[0])
     return euro_series
 
