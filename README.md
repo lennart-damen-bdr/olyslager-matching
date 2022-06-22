@@ -27,6 +27,9 @@ To start the matching process using a docker container, run: `docker-compose up`
 is `olyslager match`. This command is coupled to the python-entrypoint defined in `./oly_matching/cli.py`,
 under the function `match`.
 
+The container uses two volumes: `./data` and `./oly_matching` (the source code). If you edit the source code,
+the container's behaviour will change accordingly.
+
 The matching algorithm produces several results, which are stored as output files under `./data/output`:
 - matches_per_lis_id.csv: for each LIS type ID, state which N-types correspond to it (together with extra info)
 - metrics: overall overview of matching performance

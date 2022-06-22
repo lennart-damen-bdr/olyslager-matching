@@ -7,6 +7,6 @@ ADD oly_matching ./oly_matching
 
 RUN pip install --upgrade pip &&\
     pip install wheel &&\
-    pip install --no-cache-dir .
+    pip install --no-cache-dir -e .
 
 CMD olyslager match
