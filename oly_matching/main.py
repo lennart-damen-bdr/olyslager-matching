@@ -89,6 +89,7 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
     df_lis_original = clean.clean_string_columns(df_lis_original)
     df_lis_original = clean.clean_engine_code(df_lis_original)
     df_lis_original["model"] = clean.clean_model_column_lis(df_lis_original["model"])
+    df_lis_original["make"] = clean.clean_make_column(df_lis_original["make"])
     lis_id_has_engine_code = analyze.get_lis_id_has_engine_code(
         df=df_lis_original,
         id_col="type_id",
@@ -96,7 +97,12 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
     )
     df_results = pd.DataFrame(lis_id_has_engine_code)
     df_results["n_types"] = analyze.get_lis_id_with_n_types(df_lis_matched)
-    df_results["model"] = analyze.get_model_per_id(df_lis_original, id_col="type_id")
+    for unique_property in ("make", "model"):
+        df_results[unique_property] = analyze.get_unique_property_per_id(
+            df=df_lis_original,
+            id_col="type_id",
+            property_col=unique_property
+        )
     df_results["has_at_least_one_match"] = df_results["n_types"].notnull()
     df_results = df_results.reset_index()
 

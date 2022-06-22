@@ -58,8 +58,8 @@ def keep_records_start_year_close(df: pd.DataFrame) -> pd.DataFrame:
 
 def keep_records_with_matching_axle_config(df: pd.DataFrame) -> pd.DataFrame:
     ix_keep = (
-            df["axle_configuration_lis"].isnull()
-            | (df["axle_configuration_lis"] == df["axle_configuration_tecdoc"])
+        df["axle_configuration_lis"].isnull()
+        | (df["axle_configuration_lis"] == df["axle_configuration_tecdoc"])
     )
     logging.info(f"Dropping {ix_keep.sum()}/{df.shape[0]} records because axle config not matching")
     return df[ix_keep]

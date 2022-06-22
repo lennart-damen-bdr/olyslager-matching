@@ -17,12 +17,12 @@ def get_lis_id_has_engine_code(df: pd.DataFrame, id_col: str, engine_col: str = 
     return has_at_least_one_engine_code
 
 
-def get_model_per_id(df: pd.DataFrame, id_col: str) -> pd.Series:
-    return df.groupby(id_col).apply(lambda x: x["model"].unique()[0])
+def get_unique_property_per_id(df: pd.DataFrame, id_col: str, property_col: str) -> pd.Series:
+    return df.groupby(id_col).apply(lambda x: x[property_col].unique()[0])
 
 
 def get_performance_per_model(df_results: pd.DataFrame) -> pd.DataFrame:
-    df = df_results.groupby("model").agg(
+    df = df_results.groupby(["make", "model"]).agg(
         {
             "type_id": "size",
             "has_engine_code": "sum",
