@@ -19,8 +19,8 @@ def keep_engine_records_lis(df: pd.DataFrame) -> pd.DataFrame:
 # TODO: change this function according to which records you want to match
 def filter_records(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy(deep=True)
-    ix_keep = df["make"].str.lower().str.contains("mercedes")
-    # ix_keep = df["make"] == "MAN"
+    # ix_keep = df["make"].str.lower().str.contains("mercedes")
+    ix_keep = df["make"] == "MAN"
     df = df.loc[ix_keep, :]
     return df
 
@@ -227,6 +227,7 @@ def expand_comma_separated_types(df: pd.DataFrame) -> pd.DataFrame:
         df["type"].copy(deep=True)
         .str.replace(base_type_regex, "", regex=True)
     )
+    df["stripped_type"] = clean_whitespace(df["stripped_type"])
     df["sub_type"] = (
         df["stripped_type"]
         .copy(deep=True)
