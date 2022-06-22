@@ -11,9 +11,10 @@ pretty_logging.configure_logger(logging.INFO)
 def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
     """Main script. Loads, cleans, matches, and analyzes lis and tecdoc data
 
-    Creates 3 files:
-    - lis_ids_with_n_types.csv: for each LIS type ID, state which N-types correspond to it
-    - unmatched_lis_ids.csv: list of LIS ID's for which the algorithm could not find a match at all
+    Creates 4 files:
+    - matches_per_lis_id.csv: for each LIS type ID, state which N-types correspond to it (together with extra info)
+    - metrics: overall overview of matching performance
+    - results_per_model.csv: overview of performance per model (useful for identifying algorithm improvements)
     - lis_records_with_match.csv: detailed records from LIS, left-joined with corresponding TecDoc records
 
     Args:
@@ -87,6 +88,7 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
     # Results per LIS ID
     df_lis_original = clean.clean_string_columns(df_lis_original)
     df_lis_original = clean.clean_engine_code(df_lis_original)
+    df_lis_original["model"] = clean.clean_model_column_lis(df_lis_original["model"])
     lis_id_has_engine_code = analyze.get_lis_id_has_engine_code(
         df=df_lis_original,
         id_col="type_id",
@@ -94,11 +96,18 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
     )
     df_results = pd.DataFrame(lis_id_has_engine_code)
     df_results["n_types"] = analyze.get_lis_id_with_n_types(df_lis_matched)
+    df_results["model"] = analyze.get_model_per_id(df_lis_original, id_col="type_id")
+    df_results["has_at_least_one_match"] = df_results["n_types"].notnull()
     df_results = df_results.reset_index()
 
     output_path = f"{output_folder}/matches_per_lis_id.csv"
     df_results.to_csv(output_path, index=False)
     logging.info(f"Saved list of LIS ID's with N-type to {output_path}.")
+
+    # Results per model
+    df_results_per_model = analyze.get_performance_per_model(df_results)
+    output_path = f"{output_folder}/results_per_model.csv"
+    df_results_per_model.to_csv(output_path, index=False)
 
     # Metrics
     n_matches = df_results["n_types"].notnull().sum()
