@@ -133,6 +133,23 @@ def _clean_model_column_tecdoc_man(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def remove_axle_config_from_string(series: pd.Series) -> pd.Series:
+    return series.str.replace("|".join(c.UNIQUE_AXLE_CONFIGS), "", regex=True)
+
+
+def get_type_without_model_column(df: pd.DataFrame) -> pd.DataFrame:
+    """Removes the 'model' from the 'type' column
+
+    Both model and type column should be cleaned: lower string, removed axle config, no euro code
+    """
+    df = df.copy(deep=True)
+    df["type"] = df.apply(
+        lambda x: x["type"].replace(f"{x['model']} ", ""),
+        axis=1
+    )
+    return df
+
+
 def clean_type_column_lis(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy(deep=True)
     df = get_type_without_model_column(df)
@@ -144,12 +161,99 @@ def clean_type_column_lis(df: pd.DataFrame) -> pd.DataFrame:
     type_series = clean_whitespace(type_series)
     df["type"] = type_series.str.replace("\.\./", "", regex=True)
     df = expand_type_column_lis(df)
+    df = _clean_type_column_man(df)
 
     df["type"] = (
         df["type"]
         .apply(remove_special_characters)
         .str.replace("\s+", "", regex=True)
     )
+    return df
+
+
+def expand_type_column_lis(df: pd.DataFrame) -> pd.DataFrame:
+    """Currently built specifically for Mercedes-Benz.
+
+    Split by /: atego, actros (optional space), axor,
+    Split by ,: actros ii, arocs, and antos (xxxx, xxxx, xxxx LS)
+    """
+    df = df.copy()
+
+    # Deal with comma separated types
+    # is_comma_separated = df["type"].str.contains(",")
+    is_comma_separated = df["type"].str.match("^\d+,\s")
+    df_comma = df[is_comma_separated]
+    df_comma = expand_comma_separated_types(df_comma)
+
+    # Deal with slash separated types
+    df_rest = df[~is_comma_separated]
+    is_slash_separated = df_rest["type"].str.contains("(\w+\s?/)+")
+    df_slash = df_rest[is_slash_separated].copy(True)
+    df_slash = expand_slash_separated_types(df_slash)
+
+    # Merge results
+    df_rest = df_rest[~is_slash_separated]
+    df_clean = pd.concat([df_rest, df_comma, df_slash], axis=0)
+    df_clean = df_clean.loc[:, df.columns]
+    return df_clean
+
+
+def expand_slash_separated_types(df: pd.DataFrame) -> pd.DataFrame:
+    split_type_series = df["type"].str.split("\s+").copy(True)
+    df["base_type"] = split_type_series.apply(lambda x: x[0])
+    df["subtypes"] = split_type_series.apply(_get_subtype)
+    df = df.explode(column="subtypes")
+    df["type"] = df["base_type"] + " " + df["subtypes"]
+    return df
+
+
+def _get_subtype(split_type: list) -> list:
+    if len(split_type) > 1:
+        return split_type[1].split("/")
+    else:
+        return [""]
+
+
+def expand_comma_separated_types(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy(deep=True)
+    base_type_regex = "^\d{4}(?:,\s\d{4})+"  # "^\d{4}(?:,\s\d{4})+|^\d{2}\.\d{3}(?:,\s\d{2}\.\d{3})+"
+    df["base_types"] = (
+        df["type"].copy(deep=True)
+        .str.findall(base_type_regex)  # TODO: works only for mercedes and man
+        .apply(lambda x: x[0] if x else "")
+        .str.split(", ")
+    )
+    df["stripped_type"] = (
+        df["type"].copy(deep=True)
+        .str.replace(base_type_regex, "", regex=True)
+    )
+    df["sub_type"] = (
+        df["stripped_type"]
+        .copy(deep=True)
+        .str.split(" ")
+        .apply(lambda x: x[0])
+        .str.extract("^(\w+)")
+        .fillna("")
+    )
+    df = df.explode(column="base_types")
+    df["type"] = df["base_types"] + " " + df["sub_type"]
+    return df
+
+
+def _clean_type_column_man(df: pd.DataFrame) -> pd.DataFrame:
+    is_tg_type = (
+        df["model"].str.startswith("tg")
+        & (df["make"] == "man")
+    )
+    df_tg_ = df[is_tg_type]
+    df_rest = df[~is_tg_type]
+
+    has_format = df_tg_["type"].str.contains("\d{2}.\d{3}")
+    df_format = df_tg_[has_format]
+    df_tgs_rest = df_tg_[~has_format]
+    df_format["type"] = df_format["type"].str.extract("(\d{2}.\d{3})").iloc[:, 0]
+
+    df = pd.concat([df_rest, df_tgs_rest, df_format], axis=0)
     return df
 
 
@@ -205,96 +309,6 @@ def _expand_type_column_format_2(df: pd.DataFrame) -> pd.DataFrame:
     df_rest = df[~is_format]
     df_2 = utils.explode_column(df_2, "type", delimiter=",")
     df = pd.concat([df_2, df_rest], axis=0)
-    return df
-
-
-def expand_type_column_lis(df: pd.DataFrame) -> pd.DataFrame:
-    """Currently built specifically for Mercedes-Benz.
-
-    Split by /: atego, actros (optional space), axor,
-    Split by ,: actros ii, arocs, and antos (xxxx, xxxx, xxxx LS)
-    """
-    df = df.copy()
-
-    # Deal with comma separated types
-    is_comma_separated = (
-        (df["type"].str.match("^\d+,\s"))
-        # & (np.isin(df["model"], ["actros ii", "arocs", "antos"]))  # TODO: improves mercedes but kills general
-    )
-    df_comma = df[is_comma_separated]
-    df_comma = expand_comma_separated_types(df_comma)
-
-    # Deal with slash separated types
-    df_rest = df[~is_comma_separated]
-    is_slash_separated = (
-        (df_rest["type"].str.contains("(\w+\s?/)+"))
-        # & (np.isin(df_rest["model"], ["atego", "actros", "axor"]))  # TODO: improves mercedes but kills general
-    )
-    df_slash = df_rest[is_slash_separated].copy(True)
-    df_slash = expand_slash_separated_types(df_slash)
-
-    # Merge results
-    df_rest = df_rest[~is_slash_separated]
-    df_clean = pd.concat([df_rest, df_comma, df_slash], axis=0)
-    df_clean = df_clean.loc[:, df.columns]
-    return df_clean
-
-
-def expand_slash_separated_types(df: pd.DataFrame) -> pd.DataFrame:
-    split_type_series = df["type"].str.split("\s+").copy(True)
-    df["base_type"] = split_type_series.apply(lambda x: x[0])
-    df["subtypes"] = split_type_series.apply(_get_subtype)
-    df = df.explode(column="subtypes")
-    df["type"] = df["base_type"] + " " + df["subtypes"]
-    return df
-
-
-def _get_subtype(split_type: list) -> list:
-    if len(split_type) > 1:
-        return split_type[1].split("/")
-    else:
-        return [""]
-
-
-def expand_comma_separated_types(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy(deep=True)
-    df["base_types"] = (
-        df["type"].copy(deep=True)
-        .str.findall("^\d{4}(?:,\s\d{4})+")
-        .apply(lambda x: x[0] if x else "")
-        .str.split(", ")
-    )
-    df["stripped_type"] = (
-        df["type"].copy(deep=True)
-        .str.replace("^\d{4}(?:,\s\d{4})+\s", "", regex=True)
-    )
-    df["sub_type"] = (
-        df["stripped_type"]
-        .copy(deep=True)
-        .str.split(" ")
-        .apply(lambda x: x[0])
-        .str.extract("^(\w+)")
-        .fillna("")
-    )
-    df = df.explode(column="base_types")
-    df["type"] = df["base_types"] + " " + df["sub_type"]
-    return df
-
-
-def remove_axle_config_from_string(series: pd.Series) -> pd.Series:
-    return series.str.replace("|".join(c.UNIQUE_AXLE_CONFIGS), "", regex=True)
-
-
-def get_type_without_model_column(df: pd.DataFrame) -> pd.DataFrame:
-    """Removes the 'model' from the 'type' column
-
-    Both model and type column should be cleaned: lower string, removed axle config, no euro code
-    """
-    df = df.copy(deep=True)
-    df["type"] = df.apply(
-        lambda x: x["type"].replace(f"{x['model']} ", ""),
-        axis=1
-    )
     return df
 
 
