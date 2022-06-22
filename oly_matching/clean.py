@@ -19,8 +19,10 @@ def keep_engine_records_lis(df: pd.DataFrame) -> pd.DataFrame:
 # TODO: change this function according to which records you want to match
 def filter_records(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy(deep=True)
-    # ix_keep = df["make"].str.lower().str.contains("mercedes")
-    ix_keep = df["make"] == "MAN"
+    ix_keep = (
+        (df["make"].str.lower().str.contains("mercedes"))
+        | (df["make"] == "MAN")
+    )
     df = df.loc[ix_keep, :]
     return df
 
@@ -126,7 +128,7 @@ def _clean_model_column_tecdoc_man(df: pd.DataFrame) -> pd.DataFrame:
     if is_man_record.sum() > 0:
         df_man = df[is_man_record]
         df_rest = df[~is_man_record]
-        df_man["model"] = remove_roman_numeral_from_end(df["model"])
+        df_man["model"] = remove_roman_numeral_from_end(df_man["model"])
         is_m2000_row = df_man["model"].str.startswith("m 2000")
         df_man.loc[is_m2000_row, "model"] = "m2000"
         df = pd.concat([df_rest, df_man])
