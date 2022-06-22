@@ -19,8 +19,8 @@ def keep_engine_records_lis(df: pd.DataFrame) -> pd.DataFrame:
 # TODO: change this function according to which records you want to match
 def filter_records(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy(deep=True)
-    # ix_keep = df["make"].str.lower().str.contains("mercedes")
-    ix_keep = df["make"] == "MAN"
+    ix_keep = df["make"].str.lower().str.contains("mercedes")
+    # ix_keep = df["make"] == "MAN"
     df = df.loc[ix_keep, :]
     return df
 
@@ -135,7 +135,7 @@ def _clean_model_column_tecdoc_man(df: pd.DataFrame) -> pd.DataFrame:
 
 def clean_type_column_lis(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy(deep=True)
-    df = get_type_without_model_column_lis(df)
+    df = get_type_without_model_column(df)
 
     type_series = df["type"]
     type_series = remove_euro_code(type_series)
@@ -143,7 +143,7 @@ def clean_type_column_lis(df: pd.DataFrame) -> pd.DataFrame:
     type_series = remove_axle_config_from_string(type_series)
     type_series = clean_whitespace(type_series)
     df["type"] = type_series.str.replace("\.\./", "", regex=True)
-    df = expand_type_column(df)
+    df = expand_type_column_lis(df)
 
     df["type"] = (
         df["type"]
@@ -153,8 +153,63 @@ def clean_type_column_lis(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def expand_type_column(df: pd.DataFrame) -> pd.DataFrame:
-    """Actros is split by slash, arocs by comma. Treat carefully!
+def clean_type_column_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy(deep=True)
+    df["type"] = remove_substrings_with_accolades(df["type"])
+    df["type"] = df["type"].str.replace(",", ", ")
+    df["type"] = clean_whitespace(df["type"])
+    df["tecdoc_format"] = extract.get_type_format_tecdoc(df)
+    df = expand_type_column_tecdoc(df)
+    df["type"] = df["type"].apply(remove_special_characters)
+    df["type"] = clean_whitespace(df["type"])
+    df["type"] = (
+        df["type"]
+        .apply(remove_special_characters)
+        .str.replace("\s+", "", regex=True)
+    )
+    return df
+
+
+def expand_type_column_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy(deep=True)
+    df = get_type_without_model_column(df)
+    df = _expand_type_column_format_1(df)
+    df = _expand_type_column_format_2(df)
+    return df
+
+
+def _expand_type_column_format_1(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy(deep=True)
+    is_format = df["tecdoc_format"] == 1
+    df_1 = df[is_format]
+    df_rest = df[~is_format]
+
+    split_type = df_1["type"].copy(deep=True).str.split(" ")
+    df_1["base_type"] = split_type.apply(lambda x: x[0])
+    df_1["base_type"] = df_1["base_type"].apply(remove_special_characters)
+
+    df_1["rest"] = split_type.apply(lambda x: " ".join(x[1:]))
+    df_1["sub_types"] = split_type.apply(lambda x: " ".join(x[1:])).str.split(",")
+    df_1 = df_1.explode("sub_types")
+    df_1["sub_types"] = clean_whitespace(df_1["sub_types"])
+    df_1["type"] = df_1["base_type"] + " " + df_1["sub_types"]
+
+    df = pd.concat([df_1, df_rest], axis=0)
+    return df
+
+
+def _expand_type_column_format_2(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy(deep=True)
+    is_format = df["tecdoc_format"] == 2
+    df_2 = df[is_format]
+    df_rest = df[~is_format]
+    df_2 = utils.explode_column(df_2, "type", delimiter=",")
+    df = pd.concat([df_2, df_rest], axis=0)
+    return df
+
+
+def expand_type_column_lis(df: pd.DataFrame) -> pd.DataFrame:
+    """Currently built specifically for Mercedes-Benz.
 
     Split by /: atego, actros (optional space), axor,
     Split by ,: actros ii, arocs, and antos (xxxx, xxxx, xxxx LS)
@@ -226,39 +281,11 @@ def expand_comma_separated_types(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def clean_type_column_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy(deep=True)
-    # TODO: how to deal with MAN
-    is_man_record = df["make"] == "man"
-    df_man = df[is_man_record]
-
-    # split_type = df_man["type"].str.split(" ").copy(deep=True)
-    # first_type_element = split_type.apply(lambda x: x[0])
-    # has_base_with_subtype_format = (
-    #     first_type_element.str.contains("^\d+")
-    #     & first_type_element.str.contains("\.")
-    # )
-    # df_man_format = df_man[has_base_with_subtype_format]
-    # df_man_format["base_type"] = (
-    #     first_type_element[has_base_with_subtype_format]
-    #     .str.replace(",", "")
-    # )
-    # df_man_rest = df_man[~has_base_with_subtype_format]
-
-    df = utils.explode_column(df, "type")  # used for mercedes
-    df["type"] = (
-        df["type"]
-        .apply(remove_special_characters)
-        .str.replace("\s+", "", regex=True)
-    )
-    return df
-
-
 def remove_axle_config_from_string(series: pd.Series) -> pd.Series:
     return series.str.replace("|".join(c.UNIQUE_AXLE_CONFIGS), "", regex=True)
 
 
-def get_type_without_model_column_lis(df: pd.DataFrame) -> pd.DataFrame:
+def get_type_without_model_column(df: pd.DataFrame) -> pd.DataFrame:
     """Removes the 'model' from the 'type' column
 
     Both model and type column should be cleaned: lower string, removed axle config, no euro code

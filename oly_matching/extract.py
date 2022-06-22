@@ -84,3 +84,47 @@ def extract_man_engine_code(series: pd.Series) -> pd.Series:
     df_engine_codes = series.str.extract("(d\s?\d{4}\s?[a-z]+\s?\d+)")
     engine_series = df_engine_codes.iloc[:, 0].astype("string")
     return engine_series
+
+
+# Based on MAN. Mercedes always has format 2)
+def get_type_format_tecdoc(df: pd.DataFrame) -> pd.Series:
+    """Formats:
+        1) 28.280 fc, frc
+        2) 19.293 fk,29.239 flk (sometimes with ', ')
+        3) 24.350, 24.360
+    """
+    is_multiple_types = df["type"].str.contains(",")
+    split_type = df["type"].str.split(" ")
+    first_words = split_type.apply(lambda x: x[0])
+    other_words = split_type.apply(lambda x: " ".join(x[1:]))
+    other_words_no_digits = ~other_words.str.contains("[0-9]+")
+    df_words = pd.concat([df["type"], is_multiple_types, first_words, other_words, other_words_no_digits], axis=1)
+    df_words.columns = ["type", "is_multiple_types", "first_word", "other_words", "other_words_no_digits"]
+
+    format_series = pd.Series(index=df_words.index, name="tecdoc_format", dtype=int)
+    format_series[~df_words["is_multiple_types"]] = 0
+    format_series[
+        df_words["is_multiple_types"]
+        & df_words["other_words_no_digits"]
+    ] = 1
+    format_series[
+        df_words["is_multiple_types"]
+        & ~df_words["other_words_no_digits"]
+    ] = 2
+    return format_series
+
+    # df_words["first_word_is_repeated"] = df_words.apply(
+    #     lambda x: x["first_word"] in x["other_words"],
+    #     axis=1
+    # )  # we have format 2
+    # df_words["other_words_contain_letters"] = df_words["other_words"].copy(True).str.contains("[a-z]+")
+    # format_series = pd.Series(index=df_words.index, name="tecdoc_format", dtype=int)
+    # format_series[df_words["first_word_is_repeated"]] = 2
+    # format_series[
+    #     ~df_words["first_word_is_repeated"]
+    #     & df_words["other_words_contain_letters"]
+    # ] = 1
+    # format_series[
+    #     ~df_words["first_word_is_repeated"]
+    #     & ~df_words["other_words_contain_letters"]
+    # ] = 3
