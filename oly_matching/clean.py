@@ -1,4 +1,3 @@
-import re
 import logging
 import pandas as pd
 from oly_matching import constants as c
@@ -58,23 +57,10 @@ def convert_time_cols_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def format_string_column(series: pd.Series) -> pd.Series:
-    series = series.copy(deep=True)
-    series = series.str.lower()
-    series = series.apply(remove_special_characters)
-    return series
-
-
-def remove_special_characters(x: str) -> str:
-    """Removes all special characters, but keeps the ', ' (comma-space) intact"""
-    words = [re.sub(r"[^a-zA-Z0-9]+", "", word) for word in x.split()]
-    return " ".join(words)
-
-
 def clean_make_column(make_series: pd.Series) -> pd.Series:
     """Removes everything between brackets, punctuation, and makes lowercase"""
     no_info_between_brackets = remove_substrings_with_accolades(make_series)
-    clean_make_series = format_string_column(no_info_between_brackets)
+    clean_make_series = strip_all_special_characters(no_info_between_brackets)
     return clean_make_series
 
 
@@ -173,21 +159,12 @@ def clean_type_column_lis(df: pd.DataFrame) -> pd.DataFrame:
     df["type"] = type_series.str.replace("\.\./", "", regex=True)
     df = expand_type_column_lis(df)
     df = _clean_type_column_man(df)
-
-    df["type"] = (
-        df["type"]
-        .apply(remove_special_characters)
-        .str.replace("\s+", "", regex=True)
-    )
+    df["type"] = strip_all_special_characters(df["type"])
     return df
 
 
 def expand_type_column_lis(df: pd.DataFrame) -> pd.DataFrame:
-    """Currently built specifically for Mercedes-Benz.
-
-    Split by /: atego, actros (optional space), axor,
-    Split by ,: actros ii, arocs, and antos (xxxx, xxxx, xxxx LS)
-    """
+    """Currently built specifically for Mercedes-Benz and MAN"""
     df = df.copy()
 
     # Deal with comma separated types
@@ -226,16 +203,16 @@ def _get_subtype(split_type: list) -> list:
 
 def expand_comma_separated_types(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy(deep=True)
-    base_type_regex = "^\d{4}(?:,\s\d{4})+"  # "^\d{4}(?:,\s\d{4})+|^\d{2}\.\d{3}(?:,\s\d{2}\.\d{3})+"
+    base_types_regex = "^\d{4}(?:,\s\d{4})+|^\d{2}.\d{3}(?:,\s\d{2}.\d{3})+"
     df["base_types"] = (
         df["type"].copy(deep=True)
-        .str.findall(base_type_regex)  # TODO: works only for mercedes and man
+        .str.findall(base_types_regex)  # TODO: works only for mercedes and man
         .apply(lambda x: x[0] if x else "")
         .str.split(", ")
     )
     df["stripped_type"] = (
         df["type"].copy(deep=True)
-        .str.replace(base_type_regex, "", regex=True)
+        .str.replace(base_types_regex, "", regex=True)
     )
     df["stripped_type"] = clean_whitespace(df["stripped_type"])
     df["sub_type"] = (
@@ -275,13 +252,7 @@ def clean_type_column_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
     df["type"] = clean_whitespace(df["type"])
     df["tecdoc_format"] = extract.get_type_format_tecdoc(df)
     df = expand_type_column_tecdoc(df)
-    df["type"] = df["type"].apply(remove_special_characters)
-    df["type"] = clean_whitespace(df["type"])
-    df["type"] = (
-        df["type"]
-        .apply(remove_special_characters)
-        .str.replace("\s+", "", regex=True)
-    )
+    df["type"] = strip_all_special_characters(df["type"])
     return df
 
 
@@ -301,7 +272,7 @@ def _expand_type_column_format_1(df: pd.DataFrame) -> pd.DataFrame:
 
     split_type = df_1["type"].copy(deep=True).str.split(" ")
     df_1["base_type"] = split_type.apply(lambda x: x[0])
-    df_1["base_type"] = df_1["base_type"].apply(remove_special_characters)
+    df_1["base_type"] = strip_all_special_characters(df_1["base_type"])
 
     df_1["rest"] = split_type.apply(lambda x: " ".join(x[1:]))
     df_1["sub_types"] = split_type.apply(lambda x: " ".join(x[1:])).str.split(",")
@@ -330,7 +301,7 @@ def clean_engine_code(df: pd.DataFrame) -> pd.DataFrame:
     df = utils.explode_column(df, "component_code")
     df = _clean_mercedes_engine_code(df)
     df = _clean_man_engine_code(df)
-    df["component_code"] = df["component_code"].str.replace(" ", "")
+    df["component_code"] = strip_all_special_characters(df["component_code"])
     return df
 
 
@@ -401,3 +372,16 @@ def clean_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
     df = clean_engine_code(df)
     logging.info("TecDoc data cleaned successfully.")
     return df
+
+
+def strip_all_special_characters(series: pd.Series) -> pd.Series:
+    return (
+        series
+        .str.replace(r"[^\w\s]+", "", regex=True)
+        .str.replace("\s+", "", regex=True)
+    )
+    # return (
+    #     series
+    #     .apply(remove_special_characters)
+    #     .str.replace("\s+", "", regex=True)
+    # )
