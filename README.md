@@ -31,10 +31,10 @@ The container uses two volumes: `./data` and `./oly_matching` (the source code).
 the container's behaviour will change accordingly.
 
 The matching algorithm produces several results, which are stored as output files under `./data/output`:
-- matches_per_lis_id.csv: for each LIS type ID, state which N-types correspond to it (together with extra info)
-- metrics: overall overview of matching performance
-- results_per_model.csv: overview of performance per model (useful for identifying algorithm improvements)
-- lis_records_with_match.csv: detailed records from LIS, left-joined with corresponding TecDoc records
+- matches_per_lis_id.xlsx: for each LIS type ID, state which N-types correspond to it (together with extra info)
+- metrics.xlsx: overall overview of matching performance
+- results_per_model.xlsx: overview of performance per model (useful for identifying algorithm improvements)
+- lis_records_with_match.xlsx: detailed records from LIS, left-joined with corresponding TecDoc records
 
 ### Host OS
 If you have installed the package on your host system directly, you can run: `olyslager match`
