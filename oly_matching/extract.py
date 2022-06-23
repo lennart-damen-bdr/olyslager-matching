@@ -12,6 +12,7 @@ def append_axle_configs_lis(df: pd.DataFrame) -> pd.DataFrame:
     logging.info(f"# records in LIS before appending axle config: {len(df)}")
     df["axle_configuration"] = df["type"].str.extract(c.AXLE_CONFIG_REGEX)
     df = df.explode(column="axle_configuration")
+    df["axle_configuration_model_lis"] = df["model"].str.extract(c.AXLE_CONFIG_REGEX)
     logging.info(f"Added {len(df) - n_records} records, now LIS has {len(df)} records")
     return df
 
@@ -59,16 +60,17 @@ def extract_vehicle_type_lis(model_series: pd.Series) -> pd.Series:
 
 
 def extract_and_append_relevant_data_lis(df: pd.DataFrame) -> pd.DataFrame:
+    # Extract LIS information from columns that is needed for the merge, but don't modify the columns yet
     logging.info("Extracting and appending data to LIS...")
     df = df.copy(deep=True)
-    # Extract LIS information from columns that is needed for the merge, but don't modify the columns yet
     df = append_axle_configs_lis(df)
 
     # Extract extra information from LIS, not necessarily needed for merge but nice to have
     for col in ("model", "component_code"):  # "type" for other brands than Mercedes
         df[f"euro_{col}_lis"] = extract_euro_code(df[col])
-    df["country_lis"] = extract_country_from_make_lis(df["make"])
-    df["vehicly_type_lis"] = extract_vehicle_type_lis(df["model"])
+    for col in ("make", "category"):
+        df[f"country_{col}_lis"] = extract_country_from_make_lis(df[col])
+    df["vehicle_type_lis"] = extract_vehicle_type_lis(df["model"])
     logging.info("Extraction of LIS data completed successfully.")
     return df
 

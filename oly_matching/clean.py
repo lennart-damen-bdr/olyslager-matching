@@ -19,11 +19,11 @@ def keep_engine_records_lis(df: pd.DataFrame) -> pd.DataFrame:
 # TODO: change this function according to which records you want to match
 def filter_records(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy(deep=True)
-    ix_keep = (
-        (df["make"].str.lower().str.contains("mercedes"))
-        | (df["make"] == "MAN")
-    )
-    df = df.loc[ix_keep, :]
+    # ix_keep = (
+    #     (df["make"].str.lower().str.contains("mercedes"))
+    #     | (df["make"] == "MAN")
+    # )
+    # df = df.loc[ix_keep, :]
     return df
 
 
@@ -88,22 +88,30 @@ def remove_euro_code(series: pd.Series) -> pd.Series:
     return clean_series
 
 
-def clean_model_column_lis(model_series: pd.Series) -> pd.Series:
+def clean_model_column_lis(df: pd.DataFrame) -> pd.DataFrame:
     """Cleans the make column
 
     Assumes column has been converted to lower string already
     """
-    clean_series = remove_euro_code(model_series)
-    clean_series = remove_vehicle_type_lis(clean_series)
+    df = df.copy(deep=True)
+    df = remove_vehicle_type_mercedes_lis(df)
+    clean_series = remove_euro_code(df["model"])
     clean_series = clean_whitespace(clean_series)
     clean_series = clean_series.replace("tgl /4", "tgl")
-    return clean_series
+    clean_series = remove_substrings_with_accolades(clean_series)
+    df["model"] = clean_series.copy(deep=True)
+    df = utils.explode_column(df, "model", ",")
+    df = utils.explode_column(df, "model", "/")
+    return df
 
 
-def remove_vehicle_type_lis(model_series: pd.Series) -> pd.Series:
-    clean_series = model_series.str.replace("|".join(c.VEHICLE_TYPES_LIS), "", regex=True)
-    clean_series = clean_whitespace(clean_series)
-    return clean_series
+def remove_vehicle_type_mercedes_lis(df: pd.DataFrame) -> pd.DataFrame:
+    is_mercedes = df["make"].str.lower().str.contains("mercedes")
+    df_mercedes = df[is_mercedes]
+    df_rest = df[~is_mercedes]
+    df_mercedes["model"] = df_mercedes["model"].str.replace("|".join(c.VEHICLE_TYPES_LIS), "", regex=True)
+    df = pd.concat([df_mercedes, df_rest])
+    return df
 
 
 def clean_model_column_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
@@ -117,7 +125,8 @@ def clean_model_column_tecdoc(df: pd.DataFrame) -> pd.DataFrame:
         actros_letter = f"actros {letter} "
         actros_number = f"actros {number} "
         df["model"] = df["model"].str.replace(actros_number, actros_letter, regex=True)
-    df = utils.explode_column(df, col="model", delimiter="/")  # for mercedes, possibly for other makes
+    df = utils.explode_column(df, col="model", delimiter="/")
+    df = utils.explode_column(df, col="model", delimiter=",")
     df = _clean_model_column_tecdoc_man(df)
     df["model"] = clean_whitespace(df["model"])
     return df
@@ -375,7 +384,7 @@ def clean_lis(df: pd.DataFrame) -> pd.DataFrame:
     df["category"] = clean_category_column_lis(df["category"])
     df = clean_string_columns(df)
     df["make"] = clean_make_column(df["make"])
-    df["model"] = clean_model_column_lis(df["model"])
+    df = clean_model_column_lis(df)
     df = clean_type_column_lis(df)
     df = clean_engine_code(df)
     logging.info("LIS data cleaned successfully.")
