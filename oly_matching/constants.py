@@ -51,36 +51,7 @@ CATEGORY_MAPPING = {
     'TecDoc Tractor': "Agricultural Equipment",
 }
 
-UNIQUE_AXLE_CONFIGS = [
-    "4x4",
-    "4x2",
-    "6x2",
-    "6x2/4",
-    "6x4",
-    "8x2/4",
-    "8x4",
-    "6x6",
-    "8x6/4",
-    "8x8/4",
-    "8x8",
-    "8x2",
-    "8x4/4",
-    "10x2/4",
-    "10x4/6",
-    "8x2/6",
-    "2x2",
-    "8x6/6",
-    "10x4/8",
-    "10x6/8",
-    "10x8/6",
-    "10x8/8",
-    "6x4/4",
-    "8x4/6",
-    "4x4/4",
-    "10x4/4",
-    "10x6/6",
-    "10x6/4",
-]
+AXLE_CONFIG_REGEX = "(\dx\d?/?\d)"
 
 # Note: USA/CAN must be BEFORE USA for code below to work
 ALLOWED_COUNTRY_CODES = ["usa / can", "eu", "usa", "bra", "itl", "mb", "rk"]

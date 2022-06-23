@@ -23,14 +23,16 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
         output_folder: where to store the output files
     """
     logging.info("Loading TecDoc records...")
-    df_tecdoc = pd.read_excel(
-        io=tecdoc_path,
-        parse_dates=[7, 8]
-    )
+    # df_tecdoc = pd.read_excel(
+    #     io=tecdoc_path,
+    #     parse_dates=[7, 8]
+    # )
+    df_tecdoc = pd.read_pickle("./data/raw/tecdoc.pkl")
     logging.info(f"Loading TecDoc complete. Shape: {df_tecdoc.shape}")
 
     logging.info("Loading LIS records...")
-    df_lis = pd.read_excel(lis_path)
+    # df_lis = pd.read_excel(lis_path)
+    df_lis = pd.read_pickle("./data/raw/lis.pkl")
     logging.info(f"Loading LIS complete. Shape: {df_lis.shape}")
 
     # We keep only the LIS rows related to the engine
@@ -49,7 +51,6 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
 
     # Save the original data to compare matches later
     df_lis_original = df_lis.copy(deep=True)
-    df_tecdoc_original = df_tecdoc.copy(deep=True)
 
     # Extract important LIS information and append as columns
     df_lis = extract.extract_and_append_relevant_data_lis(df_lis)

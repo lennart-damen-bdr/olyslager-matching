@@ -136,7 +136,7 @@ def _clean_model_column_tecdoc_man(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def remove_axle_config_from_string(series: pd.Series) -> pd.Series:
-    return series.str.replace("|".join(c.UNIQUE_AXLE_CONFIGS), "", regex=True)
+    return series.str.replace(c.AXLE_CONFIG_REGEX, "", regex=True)
 
 
 def get_type_without_model_column(df: pd.DataFrame) -> pd.DataFrame:
