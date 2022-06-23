@@ -10,7 +10,7 @@ def append_axle_configs_lis(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy(deep=True)
     n_records = len(df)
     logging.info(f"# records in LIS before appending axle config: {len(df)}")
-    df["axle_configuration"] = df["type"].str.extract(c.AXLE_CONFIG_REGEX)
+    df["axle_configuration"] = df["type"].str.findall(c.AXLE_CONFIG_REGEX)
     df = df.explode(column="axle_configuration")
     df["axle_configuration_model_lis"] = df["model"].str.extract(c.AXLE_CONFIG_REGEX)
     logging.info(f"Added {len(df) - n_records} records, now LIS has {len(df)} records")
