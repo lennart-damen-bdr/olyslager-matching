@@ -52,6 +52,7 @@ CATEGORY_MAPPING = {
 }
 
 AXLE_CONFIG_REGEX = "(\dx\d?/?\d)"
+EURO_CODE_REGEX = "[Ee]uro\s\d"
 
 # Note: USA/CAN must be BEFORE USA for code below to work
 ALLOWED_COUNTRY_CODES = ["usa / can", "eu", "usa", "bra", "itl", "mb", "rk"]

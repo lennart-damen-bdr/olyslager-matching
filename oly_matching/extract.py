@@ -4,8 +4,6 @@ import pandas as pd
 from oly_matching import constants as c
 
 
-# TODO: improve with regex
-#  stackoverflow.com/questions/26577516/how-to-test-if-a-string-contains-one-of-the-substrings-in-a-list-in-pandas
 def append_axle_configs_lis(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy(deep=True)
     n_records = len(df)
@@ -15,15 +13,6 @@ def append_axle_configs_lis(df: pd.DataFrame) -> pd.DataFrame:
     df["axle_configuration_model_lis"] = df["model"].str.extract(c.AXLE_CONFIG_REGEX)
     logging.info(f"Added {len(df) - n_records} records, now LIS has {len(df)} records")
     return df
-
-
-# TODO: improve with regex
-#  stackoverflow.com/questions/26577516/how-to-test-if-a-string-contains-one-of-the-substrings-in-a-list-in-pandas
-def find_country(x: str) -> Union[str, None]:
-    for country in c.ALLOWED_COUNTRY_CODES:
-        if country in x:
-            return country
-    return None
 
 
 def extract_country_from_make_lis(make_series: pd.Series) -> pd.Series:
@@ -37,8 +26,15 @@ def extract_country_from_make_lis(make_series: pd.Series) -> pd.Series:
     return make_series.apply(lambda x: find_country(x))
 
 
+def find_country(x: str) -> Union[str, None]:
+    for country in c.ALLOWED_COUNTRY_CODES:
+        if country in x:
+            return country
+    return None
+
+
 def extract_euro_code(series: pd.Series) -> pd.Series:
-    euro_series = series.str.findall("[Ee]uro\s\d")
+    euro_series = series.str.findall(c.EURO_CODE_REGEX)
     is_null = euro_series.isnull()
     euro_series[is_null] = euro_series[is_null].apply(lambda x: [])
     euro_series = euro_series.apply(lambda x: None if not x else x[0])
@@ -87,12 +83,12 @@ def extract_man_engine_code(series: pd.Series) -> pd.Series:
     return engine_series
 
 
-# Based on MAN. Mercedes always has format 2)
 def get_type_format_tecdoc(df: pd.DataFrame) -> pd.Series:
     """Formats:
-        1) 28.280 fc, frc
-        2) 19.293 fk,29.239 flk (sometimes with ', ')
-        3) 24.350, 24.360
+        1) the base type is stated once, the subtypes are repeated with comma's
+            e.g. "28.280 fc, frc"
+        2) types are split as a whole by comma's,
+            e.g "19.293 fk,29.239 flk" or "24.350, 24.360"
     """
     is_multiple_types = df["type"].str.contains(",")
     split_type = df["type"].str.split(" ")
@@ -113,19 +109,3 @@ def get_type_format_tecdoc(df: pd.DataFrame) -> pd.Series:
         & ~df_words["other_words_no_digits"]
     ] = 2
     return format_series
-
-    # df_words["first_word_is_repeated"] = df_words.apply(
-    #     lambda x: x["first_word"] in x["other_words"],
-    #     axis=1
-    # )  # we have format 2
-    # df_words["other_words_contain_letters"] = df_words["other_words"].copy(True).str.contains("[a-z]+")
-    # format_series = pd.Series(index=df_words.index, name="tecdoc_format", dtype=int)
-    # format_series[df_words["first_word_is_repeated"]] = 2
-    # format_series[
-    #     ~df_words["first_word_is_repeated"]
-    #     & df_words["other_words_contain_letters"]
-    # ] = 1
-    # format_series[
-    #     ~df_words["first_word_is_repeated"]
-    #     & ~df_words["other_words_contain_letters"]
-    # ] = 3

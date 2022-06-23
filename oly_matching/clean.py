@@ -83,7 +83,7 @@ def remove_substrings_with_accolades(series: pd.Series) -> pd.Series:
 
 
 def remove_euro_code(series: pd.Series) -> pd.Series:
-    clean_series = series.str.replace("[Ee]uro\s?\d", "", regex=True)
+    clean_series = series.str.replace(c.EURO_CODE_REGEX, "", regex=True)
     clean_series = clean_whitespace(clean_series)
     return clean_series
 
@@ -191,8 +191,7 @@ def expand_type_column_lis(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
     # Deal with comma separated types
-    # is_comma_separated = df["type"].str.contains(",")
-    is_comma_separated = df["type"].str.match("^\d+,\s")
+    is_comma_separated = df["type"].str.contains(",")
     df_comma = df[is_comma_separated]
     df_comma = expand_comma_separated_types(df_comma)
 
