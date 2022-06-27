@@ -13,9 +13,10 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str, matching_method: s
 
     Creates 4 files:
     - matches_per_lis_id.xlsx: for each LIS type ID, state which N-types correspond to it (together with extra info)
+    - links_with_original_data.xlsx: for every link between LIS and TecDoc, state what was the
+                                     original information in LIS and TecDoc (used to validate matches by hand)
     - metrics: overall overview of matching performance
     - results_per_model.xlsx: overview of performance per model (useful for identifying algorithm improvements)
-    - lis_records_with_match.xlsx: detailed records from LIS, left-joined with corresponding TecDoc records
 
     Args:
         lis_path: path to LIS excel file

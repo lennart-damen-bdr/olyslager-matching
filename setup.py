@@ -7,7 +7,7 @@ from setuptools import find_packages, setup
 with open("README.md") as readme_file:
     readme = readme_file.read()
 
-requirements = ["numpy", "pandas", "xlrd", "openpyxl", "click"]
+requirements = ["numpy", "pandas", "xlrd", "openpyxl", "click", "fuzzywuzzy", "fuzzymatcher"]
 test_requirements = ["pytest>=6.2.5"]
 development_requirements = ["pre-commit", "matplotlib"]
 

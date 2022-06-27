@@ -8,3 +8,4 @@ services:
     volumes:
       - ./data:/usr/src/data
       - ./oly_matching:/usr/src/oly_matching
+    entrypoint: ["olyslager", "match"]
