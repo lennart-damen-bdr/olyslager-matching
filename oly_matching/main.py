@@ -24,16 +24,16 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str, matching_method: s
         matching_method: 'exact', 'cut_strings', 'fuzzy'
     """
     logging.info("Loading TecDoc records...")
-    # df_tecdoc = pd.read_excel(
-    #     io=tecdoc_path,
-    #     parse_dates=[7, 8]
-    # )
-    df_tecdoc = pd.read_pickle("./data/raw/tecdoc.pkl")
+    df_tecdoc = pd.read_excel(
+        io=tecdoc_path,
+        parse_dates=[7, 8]
+    )
+    # df_tecdoc = pd.read_pickle("./data/raw/tecdoc.pkl")
     logging.info(f"Loading TecDoc complete. Shape: {df_tecdoc.shape}")
 
     logging.info("Loading LIS records...")
-    # df_lis = pd.read_excel(lis_path)
-    df_lis = pd.read_pickle("./data/raw/lis.pkl")
+    df_lis = pd.read_excel(lis_path)
+    # df_lis = pd.read_pickle("./data/raw/lis.pkl")
     logging.info(f"Loading LIS complete. Shape: {df_lis.shape}")
 
     # We keep only the LIS rows related to the engine
