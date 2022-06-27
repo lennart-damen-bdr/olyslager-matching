@@ -127,11 +127,10 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str, matching_method: s
     )
 
     df_results_with_engine_code = df_results[df_results["has_engine_code"]]
-    n_matches_with_engine_code = df_results_with_engine_code["n_types"].notnull().sum()
-    percentage_matched_with_engine_code = n_matches_with_engine_code / len(df_results_with_engine_code) * 100
+    percentage_matched_with_engine_code = n_matches / len(df_results_with_engine_code) * 100
     logging.info(
         "For all LIS types that have an engine code, "
-        f"{n_matches_with_engine_code}/{len(df_results_with_engine_code)} "
+        f"{n_matches}/{len(df_results_with_engine_code)} "
         f"={percentage_matched_with_engine_code}% get one or more N-types"
     )
 
@@ -140,7 +139,6 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str, matching_method: s
             "n_unique_lis_ids": len(df_results),
             "n_lis_ids_with_one_or_more_n_types": int(n_matches),
             "n_lis_ids_with_engine_code": len(df_results_with_engine_code),
-            "n_lis_ids_with_engine_code_with_one_or_more_n_types": int(n_matches_with_engine_code),
             "percentage_matched": percentage_matched,
             "percentage_matched_with_engine_code": percentage_matched_with_engine_code
         },
