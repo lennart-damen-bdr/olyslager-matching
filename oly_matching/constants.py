@@ -62,3 +62,22 @@ VEHICLE_TYPES_LIS = ["construction", "tractor", "chassis"]  # for cleaning model
 
 # Matching
 REQUIRED_MATCHING_COLS = ["make", "model", "type", "component_code"]
+MATCHING_OUTPUT_COLUMNS = [
+    'type_id',
+    'N-Type No.',
+    'category_lis',
+    'category_tecdoc',
+    'make_lis',
+    'make_tecdoc',
+    'model_lis',
+    'model_tecdoc',
+    'type_lis',
+    'type_tecdoc',
+    'axle_configuration',
+    'component_code_lis',
+    'component_code_tecdoc',
+    'model_year_start_lis',
+    'model_year_start_tecdoc',
+    'model_year_end_lis',
+    'model_year_end_tecdoc',
+]

@@ -1,4 +1,5 @@
 import pandas as pd
+from oly_matching import constants as c
 
 
 def get_lis_id_with_n_types(df_matched: pd.DataFrame) -> pd.DataFrame:
@@ -40,3 +41,31 @@ def get_performance_per_model(df_results: pd.DataFrame) -> pd.DataFrame:
     df = df.reset_index()
     df["n_lis_ids_with_one_or_more_n_types"].sum()/df["n_lis_ids_with_engine_code"].sum()
     return df
+
+
+def get_links_and_original_data(df_matched: pd.DataFrame, df_lis_original: pd.DataFrame, df_tecdoc_original: pd.DataFrame) -> pd.DataFrame:
+    type_id_n_type = (
+        df_matched[["type_id", "N-Type No."]]
+        .groupby(["type_id", "N-Type No."])
+        .groups
+        .keys()
+    )
+    df_links = pd.DataFrame(type_id_n_type, columns=["type_id", "N-Type No."])
+    df_links = df_links[df_links["N-Type No."].notnull()]
+    df_links["N-Type No."] = df_links["N-Type No."].astype(int)
+    df_links = pd.merge(
+        left=df_links,
+        right=df_lis_original,
+        on=["type_id"],
+        how="inner"
+    )
+    df_links = pd.merge(
+        left=df_links,
+        right=df_tecdoc_original,
+        on=["N-Type No."],
+        how="left",
+        suffixes=("_lis", "_tecdoc")
+    )
+    df_links = df_links[c.MATCHING_OUTPUT_COLUMNS]
+    df_links = df_links.rename(columns={"axle_configuration": "axle_configuration_tecdoc"})
+    return df_links

@@ -1,20 +1,51 @@
 import logging
+import sys
 import pandas as pd
+import fuzzymatcher
 
-MATCHING_MERGE_COLS = ["make", "model", "type", "category", "component_code_clean"]
+MATCHING_MERGE_EXACT = ["make", "model", "type", "category", "component_code_clean"]
+MATCHING_MERGE_FUZZY = ["make", "model", "type", "category", "component_code"]
+
+N_CHARACTERS_TO_KEEP = {
+    "model": 6,
+    "type": 6,
+    "component_code": 6,
+}
 
 
-def match_tecdoc_records_to_lis(df_lis: pd.DataFrame, df_tecdoc: pd.DataFrame) -> pd.DataFrame:
+def match_tecdoc_records_to_lis(df_lis: pd.DataFrame, df_tecdoc: pd.DataFrame, how: str = "exact") -> pd.DataFrame:
     """Tries to match every record from lis against a record from tecdoc (left join)
 
     Assumes df_lis and df_tecdoc are already clean!
     """
-    logging.info("Starting matching process...")
+    logging.info(f"Doing matching process using {how}...")
+    if how == "exact":
+        df_lis_matched = match_exactly(df_lis, df_tecdoc)
+    elif how == "cut_strings":
+        df_lis = cut_strings(df_lis)
+        df_tecdoc = cut_strings(df_tecdoc)
+        df_lis_matched = match_exactly(df_lis, df_tecdoc)
+    elif how == "fuzzy":
+        df_lis_matched = match_fuzzy(df_lis, df_tecdoc)
+    else:
+        logging.error(f"how = {how} is not supported!")
+        sys.exit(1)
+    logging.info("Matching completed successfully.")
+    return df_lis_matched
+
+
+def cut_strings(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy(deep=True)
+    for col, n_characters in N_CHARACTERS_TO_KEEP.items():
+        df[col] = df[col].str[:n_characters]
+    return df
+
+
+def match_exactly(df_lis: pd.DataFrame, df_tecdoc: pd.DataFrame) -> pd.DataFrame:
     df_lis_matched = match_on_required_columns(df_lis, df_tecdoc)
     df_lis_matched = keep_records_start_year_close(df_lis_matched)
     df_lis_matched = keep_records_with_matching_axle_config(df_lis_matched)
     df_lis_matched["in_tecdoc"] = df_lis_matched["in_tecdoc"].replace(to_replace=[None], value=False)
-    logging.info("Matching completed successfully.")
     return df_lis_matched
 
 
@@ -35,7 +66,7 @@ def match_on_required_columns(df_lis: pd.DataFrame, df_tecdoc: pd.DataFrame) -> 
             left=df_lis_i,
             right=df_tecdoc,
             how="left",
-            on=MATCHING_MERGE_COLS,
+            on=MATCHING_MERGE_EXACT,
             suffixes=("_lis", "_tecdoc")
         )
         df_matched_list.append(df_lis_matched)
@@ -63,3 +94,18 @@ def keep_records_with_matching_axle_config(df: pd.DataFrame) -> pd.DataFrame:
     )
     logging.info(f"Dropping {ix_keep.sum()}/{df.shape[0]} records because axle config not matching")
     return df[ix_keep]
+
+
+def match_fuzzy(df_lis: pd.DataFrame, df_tecdoc: pd.DataFrame) -> pd.DataFrame:
+    df_lis_matched = fuzzymatcher.fuzzy_left_join(
+        df_left=df_lis,
+        df_right=df_tecdoc,
+        left_on=MATCHING_MERGE_FUZZY,
+        right_on=MATCHING_MERGE_FUZZY,
+        left_id_col="type_id",
+        right_id_col="N-Type No."
+    )
+    df_lis_matched.columns = [x.replace("left", "lis").replace("right", "tecdoc") for x in df_lis_matched.columns]
+    df_lis_matched = df_lis_matched.reindex(sorted(df_lis_matched.columns), axis=1)
+    df_lis_matched = keep_records_with_matching_axle_config(df_lis_matched)
+    return df_lis_matched

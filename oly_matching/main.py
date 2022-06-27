@@ -8,7 +8,7 @@ from oly_matching import clean, extract, match, analyze, pretty_logging
 pretty_logging.configure_logger(logging.INFO)
 
 
-def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
+def main(lis_path: str, tecdoc_path: str, output_folder: str, matching_method: str) -> None:
     """Main script. Loads, cleans, matches, and analyzes lis and tecdoc data
 
     Creates 4 files:
@@ -21,6 +21,7 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
         lis_path: path to LIS excel file
         tecdoc_path: path to TecDoc excel file
         output_folder: where to store the output files
+        matching_method: 'exact', 'cut_strings', 'fuzzy'
     """
     logging.info("Loading TecDoc records...")
     # df_tecdoc = pd.read_excel(
@@ -51,6 +52,7 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
 
     # Save the original data to compare matches later
     df_lis_original = df_lis.copy(deep=True)
+    df_tecdoc_original = df_tecdoc.copy(deep=True)
 
     # Extract important LIS information and append as columns
     df_lis = extract.extract_and_append_relevant_data_lis(df_lis)
@@ -76,18 +78,20 @@ def main(lis_path: str, tecdoc_path: str, output_folder: str,) -> None:
     df_tecdoc = df_tecdoc.reset_index(drop=True)
 
     # Matching
-    df_lis_matched = match.match_tecdoc_records_to_lis(df_lis, df_tecdoc)
+    df_lis_matched = match.match_tecdoc_records_to_lis(df_lis, df_tecdoc, how=matching_method)
 
     # Saving output
     # All details about the matches
-    output_path = f"{output_folder}/lis_records_with_match.xlsx"
-    df_lis_matched.to_excel(output_path, index=False)
-    logging.info(f"Saved full LIS records with appended N-type to {output_path}.")
+    df_links = analyze.get_links_and_original_data(df_lis_matched, df_lis_original, df_tecdoc_original)
+
+    output_path = f"{output_folder}/links_with_original_data.xlsx"
+    df_links.to_excel(output_path, index=False)
+    logging.info(f"Saved links between LIS and N-type together with original LIS and TecDoc data to {output_path}.")
 
     # Results per LIS ID
     df_lis_original = clean.clean_string_columns(df_lis_original)
     df_lis_original = clean.clean_engine_code(df_lis_original)
-    df_lis_original= clean.clean_model_column_lis(df_lis_original)
+    df_lis_original = clean.clean_model_column_lis(df_lis_original)
     df_lis_original["make"] = clean.clean_make_column(df_lis_original["make"])
     lis_id_has_engine_code = analyze.get_lis_id_has_engine_code(
         df=df_lis_original,
